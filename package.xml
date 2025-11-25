@@ -1,8 +1,8 @@
 <?xml version="1.0"?>
 <package format="2">
-  <name>soar_maze_escape</name>
+  <name>soarMazeEscape</name>
   <version>0.0.0</version>
-  <description>The soar_maze_escape package</description>
+  <description>The soarMazeEscape package</description>
 
   <!-- One maintainer tag required, multiple allowed, one person per tag -->
   <!-- Example:  -->
