@@ -5,8 +5,12 @@ from nav_msgs.srv import GetMap
 from nav_msgs.msg import OccupancyGrid
 import numpy as np
 import matplotlib.pyplot as plt
+import heapq
+import math
 
-# ----------------- Helper Methods -----------------
+MOVES = [
+    (1, 0),  (-1, 0),  (0, 1),  (0, -1)]
+
 def getMap() -> OccupancyGrid:
     """ Loads map from map service """
     rospy.wait_for_service('static_map')
@@ -24,175 +28,11 @@ def grid_to_world(row, col, origin_x, origin_y, resolution):
     y = origin_y + (row + 0.5) * resolution
     return x, y
 
-# ----------------- Main -----------------
-if __name__ == "__main__":
-    # Inicializace ROS node
-    rospy.init_node('moro_maze_navigation', anonymous=True)
-
-    # Získání mapy
-    recMap = getMap()
-    if recMap is None:
-        exit(1)
-
-    # Parametry mapy
-    width = recMap.info.width
-    height = recMap.info.height
-    resolution = recMap.info.resolution
-    origin_x = recMap.info.origin.position.x
-    origin_y = recMap.info.origin.position.y
-    
-    # ----------------- Vypiš původní data z mapy jako hezkou tabulku -----------------
-    print("----- Původní data z OccupancyGrid (1D) -----")
-    data_list = list(recMap.data)
-    row_length = 27  # počet hodnot na řádek
-    
-    for i in range(0, len(data_list), row_length):
-        line = data_list[i:i+row_length]
-        # vynecháme hranaté závorky, jen čísla zarovnaná na 3 znaky
-        print(' '.join(f"{val:3}" for val in line))
-
-
-
-    # 1D -> 2D numpy array
-    map_np = np.array(recMap.data, dtype=np.int8).reshape((height, width))
-
-    # Najdi volné a obsazené buňky
-    free_cells = np.argwhere(map_np == 0)
-    occupied_cells = np.argwhere(map_np == 100)
-    height, width = map_np.shape
-    grid = np.array([[r, c] for r in range(height) for c in range(width)]) #######################################################################
-
-    # Převod všech bodů na světové souřadnice
-    free_points_world = np.array([grid_to_world(r, c, origin_x, origin_y, resolution) for r, c in free_cells])
-    occupied_points_world = np.array([grid_to_world(r, c, origin_x, origin_y, resolution) for r, c in occupied_cells])
-
-    # ----------------- Vypisování do konzole -----------------
-    print("----- Volné buňky -----")
-    for (r, c), (x, y) in zip(free_cells, free_points_world):
-        print(f"Grid: ({r}, {c}) → World: ({x:.3f}, {y:.3f})")
-
-    print("\n----- Obsazené buňky -----")
-    for (r, c), (x, y) in zip(occupied_cells, occupied_points_world):
-        print(f"Grid: ({r}, {c}) → World: ({x:.3f}, {y:.3f})")
-
-    # ----------------- Vizualizace -----------------
-    plt.figure(figsize=(6,6))
-    plt.scatter(free_points_world[:,0], free_points_world[:,1], color='white', s=100, edgecolor='k', label='Free')
-    plt.scatter(occupied_points_world[:,0], occupied_points_world[:,1], color='black', s=100, label='Occupied')
-    plt.xlabel('X [m]')
-    plt.ylabel('Y [m]')
-    plt.title('Labyrinth map')
-    plt.legend()
-    plt.axis('equal')
-    plt.grid(True)
-    plt.show()
-
-
-
-# resolution = 1 # může být také 0.66>, 0.33> nebo 0.166>
-# startPos = (2,1)
-# goalPos = (0,0) # - globální!
-# robotWidth = ?
-# secureWallDistance = ?
-
-directions = [(-1,0),(1,0),(0,-1),(0,1),(-1,-1),(-1,1),(1,-1),(1,1)]
-
-def count_free_neighbors(grid, row, col):
-    count = 0
-    for dr, dc in directions:
-        r, c = row + dr, col + dc
-        if 0 <= r < grid.shape[0] and 0 <= c < grid.shape[1]:
-            if grid[r, c] == 0:  # free
-                count += 1
-    return count
-
-# rozhodující uzel:
-if count_free_neighbors(grid, row, col) > 2:
-    is_decision_node = True
-
-
-
-# vezmu počáteční bod
-# checknu 8 okolních bodů a zjistím, který je nejblíže cíli
-# - checknu, zda každý bod existuje
-# - checknu, zda je každý bod dostupný
-# ověřím, zda na ten bod mám přístup
-# - pokud ne, jdu na druhý nejbližší
-# - pokud ano, jdu na tento bod a čeknu opět všech 8 okolních bodů
-# - opakování...
-# - NEJKRATŠÍ CESTY ZKOUMÁM JAKO PRVNÍ
-# - využiju rekurzi
-# Použiju BFS - hledání nejkrajší cesty na úkor výkonové náročnosti.
-
-#Edges have these properties:
-# - Parent Node
-# - Child Node
-# - Cost (celou délku od počátečního bodu)
-
-import math
-
-resolution = 1 # doplnit, navázat!
-goal_pos = (0,0) # - globální!
-directions = [(-1,0),(1,0),(0,-1),(0,1),(-1,-1),(-1,1),(1,-1),(1,1)]
-distances = []
-
-def explore_neighbors(node_coor, grid):
-    
-    for move_x, move_y in directions:
-        neighbor_x, neighbor_y = node_coor[0] + move_x, node_coor[1] + move_y
-        # if (neighbor_x, neighbor_y) in grid and check_for_wall_collision() == False:
-            path_lenght = math.sqrt((neighbor_x - goal_pos[0])**2 + (neighbor_y - goal_pos[1])**2)
-            distances.append(path_lenght)
-        # else:
-            distances.append(100)
-
-    # dictionary pro seznam objevených node, key budou souřadnice node, hodnoty budou cost, parent a child
-    # budu muset implementovat depth u nodes
-
-    new_pos = (node_x, node_y) + directions[distances.index(min(distances))]
-
-    if new_pos = goal_pos:
-        pass
-
-    
-    explore_neighbors(new_pos, grid)
-
-    # - stěny
-    # - cíl dosažen
-    # - pouze delší cesty
-
-    # struktury
-    # - nody se vzdálenostmi sousedů od cíle
-
-def check_for_wall_collision():
-
-    
-
-
-
-def BFS(currentNode, graph, goal)
-    Add currentNode to queue
-    while queue not empty:
-        n = queue.pop
-        if n == goal: return
-        for child in getChildren(graph, n):
-            if child not in listParents(discoveredNodes):
-                add new edge from n to child to discoveredNodes
-                add child to queue
-
-
-import heapq
-import math
-import numpy as np
-
-# pohyb ve 8 směrech
-MOVES = [
-    (1, 0),  (-1, 0),  (0, 1),  (0, -1),      # ortogonální
-    (1, 1),  (1, -1), (-1, 1), (-1, -1)       # diagonální
-]
-
 def dijkstra_grid(grid, start_cell, goal_cell):
+    
     total_rows, total_cols = grid.shape
+
+    print("tr:", total_rows, "tc:", total_cols)
 
     # minimální vzdálenost do každé buňky
     distance = {start_cell: 0}
@@ -220,6 +60,7 @@ def dijkstra_grid(grid, start_cell, goal_cell):
             neighbor_row = current_row + move_row
             neighbor_col = current_col + move_col
             neighbor_cell = (neighbor_row, neighbor_col)
+            print("neighbor_cell", neighbor_cell)
 
             # mimo mapu
             if not (0 <= neighbor_row < total_rows and 0 <= neighbor_col < total_cols):
@@ -231,8 +72,8 @@ def dijkstra_grid(grid, start_cell, goal_cell):
 
             # realistická cena pohybu:
             # diagonála = sqrt(2), rovně = 1
-            if move_row != 0 and move_col != 0:
-                move_cost = math.sqrt(2)
+            if move_row != 0 and move_col != 0: ## pryč
+                move_cost = math.sqrt(2)        ## pryč
             else:
                 move_cost = 1
 
@@ -255,30 +96,140 @@ def reconstruct_path(previous_cell, goal_cell):
         cell = previous_cell.get(cell)
     return path[::-1]
 
+def transform(x, y):
+    return (6*y + 4, 6*x + 4)
+
+if __name__ == "__main__":
+    # Inicializace ROS node
+    rospy.init_node('moro_maze_navigation', anonymous=True)
+
+    # Získání mapy
+    recMap = getMap()
+    if recMap is None:
+        exit(1)
+
+    # Parametry mapy
+    width = recMap.info.width
+    height = recMap.info.height
+    resolution = recMap.info.resolution
+    origin_x = recMap.info.origin.position.x
+    origin_y = recMap.info.origin.position.y
+    
+    # ----------------- Vypiš původní data z mapy jako hezkou tabulku -----------------
+    print("----- Původní data z OccupancyGrid (1D) -----")
+    data_list = list(recMap.data)
+    row_length = 27  # počet hodnot na řádek
+
+    print(recMap.data)
+    
+    for i in range(0, len(data_list), row_length):
+        line = data_list[i:i+row_length]
+        # vynecháme hranaté závorky, jen čísla zarovnaná na 3 znaky
+        print(' '.join(f"{val:3}" for val in line))
+
+    # 1D -> 2D numpy array
+    map_np = np.array(recMap.data, dtype=np.int8).reshape((height, width))
+
+    print(map_np)
+
+    # Najdi volné a obsazené buňky
+    free_cells = np.argwhere(map_np == 0)
+    occupied_cells = np.argwhere(map_np == 100)
+
+    print("free_cells", free_cells)
+    print("occupied_cells", occupied_cells)
+
+    height, width = map_np.shape
+    #grid = np.array([[r, c] for r in range(height) for c in range(width)]) #######################################################################
+    #grid = np.array([[(r, c) for c in range(width)] for r in range(height)])
+
+
+    # Převod všech bodů na světové souřadnice
+    free_points_world = np.array([grid_to_world(r, c, origin_x, origin_y, resolution) for r, c in free_cells])
+    occupied_points_world = np.array([grid_to_world(r, c, origin_x, origin_y, resolution) for r, c in occupied_cells])
+
+    # ----------------- Vypisování do konzole -----------------
+    print("----- Volné buňky -----")
+    #for (r, c), (x, y) in zip(free_cells, free_points_world):
+        #print(f"Grid: ({r}, {c}) → World: ({x:.3f}, {y:.3f})")
+
+    print("\n----- Obsazené buňky -----")
+    #for (r, c), (x, y) in zip(occupied_cells, occupied_points_world):
+        #print(f"Grid: ({r}, {c}) → World: ({x:.3f}, {y:.3f})")
+
+    start = transform(2,1)
+    goal = transform(0,0)
+
+    grid = (map_np == 100).astype(int)
+
+    print("grid:", grid)
+
+    dist, parent = dijkstra_grid(grid, start, goal)
+    path = reconstruct_path(parent, goal)
+
+    print("Vzdálenost:", dist[goal])
+    print("Cesta:", path)
+
+
+    # Převod cesty na světové souřadnice
+    path_world = np.array([grid_to_world(r, c, origin_x, origin_y, resolution) for r, c in path])
+    
+    # ----------------- Vizualizace -----------------
+    plt.figure(figsize=(6,6))
+    plt.scatter(free_points_world[:,0], free_points_world[:,1], color='white', s=100, edgecolor='k', label='Free')
+    plt.scatter(occupied_points_world[:,0], occupied_points_world[:,1], color='black', s=100, label='Occupied')
+    
+    # Přidej cestu
+    if len(path_world) > 0:
+        plt.plot(path_world[:,0], path_world[:,1], color='red', linewidth=2, label='Path')
+    
+    plt.xlabel('X [m]')
+    plt.ylabel('Y [m]')
+    plt.title('Labyrinth map')
+    plt.legend()
+    plt.axis('equal')
+    plt.grid(True)
+    plt.show()
 
 
 
-grid = np.array([
-    [0,0,0],
-    [1,1,0],
-    [0,0,0]
-])
 
-start = (0,0)
-goal = (2,2)
+# resolution = 1 # může být také 0.66>, 0.33> nebo 0.166>
+# startPos = (2,1)
+# goalPos = (0,0) # - globální!
+# robotWidth = ?
+# secureWallDistance = ?
 
-dist, parent = dijkstra_grid_diagonal(grid, start, goal)
-path = reconstruct_path(parent, goal)
+# vezmu počáteční bod
+# checknu 8 okolních bodů a zjistím, který je nejblíže cíli
+# - checknu, zda každý bod existuje
+# - checknu, zda je každý bod dostupný
+# ověřím, zda na ten bod mám přístup
+# - pokud ne, jdu na druhý nejbližší
+# - pokud ano, jdu na tento bod a čeknu opět všech 8 okolních bodů
+# - opakování...
+# - NEJKRATŠÍ CESTY ZKOUMÁM JAKO PRVNÍ
+# - využiju rekurzi
+# Použiju BFS - hledání nejkrajší cesty na úkor výkonové náročnosti.
 
-print("Vzdálenost:", dist[goal])
-print("Cesta:", path)
+#Edges have these properties:
+# - Parent Node
+# - Child Node
+# - Cost (celou délku od počátečního bodu)
 
 
 
 
 
 
-# Se secureWallDistance si stále nevím rady.
+
+
+
+
+
+
+
+
 
 
 
