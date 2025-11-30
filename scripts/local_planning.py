@@ -335,27 +335,30 @@ def pubTrajectory(trajectory):
     path_msg = Path()
     path_msg.header = Header()
     path_msg.header.stamp = rospy.Time.now()
-    path_msg.header.frame_id = "map"   # the trajectory is predicted in world/map frame
+    # NOTE: the simulated trajectories are relative to the robot start_pose (0,0,0),
+    # so publish them in the robot frame
+    path_msg.header.frame_id = "base_link"
 
     for pose in trajectory:
         x, y, theta = pose
 
         ps = PoseStamped()
         ps.header = path_msg.header
-        ps.pose.position.x = x
-        ps.pose.position.y = y
+        ps.pose.position.x = float(x)
+        ps.pose.position.y = float(y)
         ps.pose.position.z = 0.0
 
-        # Convert yaw to quaternion
-        q = tf.transformations.quaternion_from_euler(0, 0, theta)
-        ps.pose.orientation.x = q[0]
-        ps.pose.orientation.y = q[1]
-        ps.pose.orientation.z = q[2]
-        ps.pose.orientation.w = q[3]
+        # Use scipy Rotation to create quaternion [x,y,z,w]
+        q = R.from_euler('z', float(theta)).as_quat()  # returns [x, y, z, w]
+        ps.pose.orientation.x = float(q[0])
+        ps.pose.orientation.y = float(q[1])
+        ps.pose.orientation.z = float(q[2])
+        ps.pose.orientation.w = float(q[3])
 
         path_msg.poses.append(ps)
 
     traj_pub.publish(path_msg)
+
 
 
 goalpose_robot = transform_goal_to_robot_frame(robotpose, goalpose)
@@ -368,21 +371,21 @@ def pubGoal(goalpose_robot):
     msg.header.stamp = rospy.Time.now()
     msg.header.frame_id = "base_link"
 
-    msg.pose.position.x = x
-    msg.pose.position.y = y
+    msg.pose.position.x = float(x)
+    msg.pose.position.y = float(y)
     msg.pose.position.z = 0.0
 
-    q = tf.transformations.quaternion_from_euler(0, 0, theta)
-    msg.pose.orientation.x = q[0]
-    msg.pose.orientation.y = q[1]
-    msg.pose.orientation.z = q[2]
-    msg.pose.orientation.w = q[3]
+    q = R.from_euler('z', float(theta)).as_quat()  # [x,y,z,w]
+    msg.pose.orientation.x = float(q[0])
+    msg.pose.orientation.y = float(q[1])
+    msg.pose.orientation.z = float(q[2])
+    msg.pose.orientation.w = float(q[3])
 
     goal_pub.publish(msg)
 
 
 rate = rospy.Rate(1.0/ts)  # match sampling time
-
+last_control = np.array([0.0, 0.0], dtype=float)
 while not rospy.is_shutdown():
 
     # 1. Localize robot
