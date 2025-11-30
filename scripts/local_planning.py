@@ -2,6 +2,7 @@
 ## Imports required components and manually creates a complex global path for debugging
 import numpy as np
 import numpy.typing as npt
+import math
 import rospy
 import tf2_ros
 from scipy.spatial.transform import Rotation as R
@@ -82,17 +83,14 @@ def pose2tf_mat(pose):
     return T
 
 def tf_mat2pose(T):
-    """
-    Converts a 3x3 transform matrix back into a pose (x, y, theta)
-    using atan2 for the rotation extraction.
-    """
     x = T[0, 2]
     y = T[1, 2]
 
-    # Extract theta = atan2(sin, cos)
-    theta = np.atan2(T[1, 0], T[0, 0])
+    # theta = atan2(sin, cos) using Python's math, not NumPy
+    theta = math.atan2(T[1, 0], T[0, 0])
 
     return np.array([x, y, theta])
+
 
 def transform_goal_to_robot_frame(robot_pose, goal_pose):
     """
