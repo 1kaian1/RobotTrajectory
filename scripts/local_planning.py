@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 ## Imports required components and manually creates a complex global path for debugging
 import numpy as np
 import numpy.typing as npt
