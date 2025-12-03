@@ -14,17 +14,23 @@ from geometry_msgs.msg import Pose
 
 
 global_path = [
-    [2.5 ,1, 0],
-    [3, 1.5, 0.5*np.pi],
-    [2.5, 2, np.pi],
-    [1.5, 2, np.pi],
-    [1, 1.5, 1.5*np.pi],
-    [1, 0.5, 1.5*np.pi],
-    [0.5, 0, np.pi],
-    [0, 0, np.pi],
+    [2, 1, 0],
+    [3, 1, 0.5*np.pi],
+    [3, 2, np.pi],
+    [2, 2, -0.5*np.pi],
+    [2, 1, 2.3562],           # 135° (diagonal - keep as decimal or atan2(-1,1))
+    [1, 2, -0.5*np.pi],
+    [1, 1, -0.5*np.pi],
+    [1, 0, np.pi],
+    [0, 0, 0],
 ]
 
-current_goal_ID = 1
+
+current_goal_ID = 0
+
+# Goal reaching thresholds
+GOAL_DISTANCE_THRESHOLD = 0.25  # meters
+GOAL_ANGLE_THRESHOLD = 0.3    # radians (~11 degrees)
 
 # Current goal as a numpy array (map frame)
 goalpose = np.array(global_path[current_goal_ID])
@@ -129,12 +135,12 @@ def generateControls(lastControl: npt.ArrayLike) -> np.ndarray:
     # -----------------------------
     # Robot control constraints
     # -----------------------------
-    v_min, v_max = -0.1, 0.2       # m/s   (reverse to slow forward)
-    w_min, w_max = -1.4, 1.4       # rad/s
+    v_min, v_max = -0.2, 0.5       # m/s   (reverse to slow forward)
+    w_min, w_max = -2, 2       # rad/s
 
     # How far we are allowed to deviate from previous control
-    v_delta_max = 0.03             # m/s per timestep
-    w_delta_max = 0.4              # rad/s per timestep
+    v_delta_max = 0.1             # m/s per timestep
+    w_delta_max = 0.8              # rad/s per timestep
 
     # -----------------------------
     # Define allowed local ranges
@@ -210,6 +216,30 @@ class PT2Block:
 def wrap_angle(theta: float) -> float:
     """Wrap angle into [-pi, pi]."""
     return (theta + np.pi) % (2*np.pi) - np.pi
+
+
+def check_goal_reached(robot_pose: npt.ArrayLike, goal_pose: npt.ArrayLike) -> bool:
+    """
+    Check if the robot has reached the goal within acceptable thresholds.
+    
+    robot_pose: (x, y, theta) in map frame
+    goal_pose:  (x, y, theta) in map frame
+    
+    Returns:
+        True if goal is reached, False otherwise
+    """
+    robot_pose = np.asarray(robot_pose)
+    goal_pose = np.asarray(goal_pose)
+    
+    # Compute distance error
+    distance_error = np.linalg.norm(robot_pose[:2] - goal_pose[:2])
+    
+    # Compute angle error
+    angle_error = abs(wrap_angle(robot_pose[2] - goal_pose[2]))
+    
+    # Check both thresholds
+    return (distance_error <= GOAL_DISTANCE_THRESHOLD and 
+            angle_error <= GOAL_ANGLE_THRESHOLD)
 
 
 def costFn(pose: npt.ArrayLike,
@@ -389,28 +419,40 @@ while not rospy.is_shutdown():
     # 1. Localize robot
     robotpose = localiseRobot()
 
-    # 2. Transform goal into robot frame
+    # 2. Check if current goal is reached
+    if check_goal_reached(robotpose, global_path[current_goal_ID]):
+        # Advance to next goal
+        if current_goal_ID < len(global_path) - 1:
+            current_goal_ID += 1
+            print(f"Goal reached! Moving to next goal ID: {current_goal_ID}, pose: {global_path[current_goal_ID]}")
+        else:
+            print("All goals reached! Path complete.")
+            # Optionally, stop the robot by sending zero velocity
+            pubCMD(np.array([0.0, 0.0]))
+            break
+
+    # 3. Transform goal into robot frame
     goalpose_robot = transform_goal_to_robot_frame(robotpose, global_path[current_goal_ID])
 
-    # 3. Generate controls and evaluate them (in robot frame)
+    # 4. Generate controls and evaluate them (in robot frame)
     controls = generateControls(last_control)
     costs, trajectories = evaluateControls(controls, robotModelPT2, horizon, goalpose_robot, ts)
 
-    # 4. Select best
+    # 5. Select best
     best_idx = np.argmin(costs)
     best_control = controls[best_idx]
     best_trajectory = trajectories[best_idx]
 
-    # 5. Publish cmd_vel
+    # 6. Publish cmd_vel
     pubCMD(best_control)
 
-    # 6. Publish predicted path
+    # 7. Publish predicted path
     pubTrajectory(best_trajectory)
 
-    # 7. Publish local goal
+    # 8. Publish local goal
     pubGoal(goalpose_robot)
 
-    # 8. Remember last control
+    # 9. Remember last control
     last_control = best_control
 
     rate.sleep()
