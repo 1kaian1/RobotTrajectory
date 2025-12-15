@@ -63,13 +63,13 @@ if __name__ == "__main__":
     occupied_points_world = np.array([grid_to_world(r, c, origin_x, origin_y, resolution) for r, c in occupied_cells])
 
     # ----------------- Vypisování do konzole -----------------
-    print("----- Volné buňky -----")
-    for (r, c), (x, y) in zip(free_cells, free_points_world):
-        print(f"Grid: ({r}, {c}) → World: ({x:.3f}, {y:.3f})")
+    #print("----- Volné buňky -----")
+    #for (r, c), (x, y) in zip(free_cells, free_points_world):
+    #    print(f"Grid: ({r}, {c}) → World: ({x:.3f}, {y:.3f})")
 
-    print("\n----- Obsazené buňky -----")
-    for (r, c), (x, y) in zip(occupied_cells, occupied_points_world):
-        print(f"Grid: ({r}, {c}) → World: ({x:.3f}, {y:.3f})")
+    #print("\n----- Obsazené buňky -----")
+    #for (r, c), (x, y) in zip(occupied_cells, occupied_points_world):
+    #    print(f"Grid: ({r}, {c}) → World: ({x:.3f}, {y:.3f})")
 
     # ----------------- Vizualizace -----------------
     plt.figure(figsize=(6,6))
