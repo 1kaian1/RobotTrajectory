@@ -11,23 +11,24 @@ from geometry_msgs.msg import Twist, PoseStamped
 from nav_msgs.msg import Path
 from std_msgs.msg import Header
 from geometry_msgs.msg import Pose
+import matplotlib.pyplot as plt
 
 
 global_path = [
-    [2, 1, 0],
-    [3, 1, 0.5*np.pi],
-    [3, 2, np.pi],
-    [2, 2, -0.5*np.pi],
-    [2, 1, 2.3562],           # 135° (diagonal - keep as decimal or atan2(-1,1))
-    [1, 2, -0.5*np.pi],
-    [1, 1, -0.5*np.pi],
-    [1, 0, np.pi],
-    [0, 0, 0],
+    [2 ,1, 0],
+    [2.5, 1, 0],
+    [3, 1.5, 0.5*np.pi],
+    [2.5, 2, np.pi],
+    [2, 2, np.pi],
+    [1.5, 2, np.pi],
+    [1, 1.5, 1.5*np.pi],
+    [1, 0.5, 1.5*np.pi],
+    [0.5, 0, np.pi],
+    [0, 0, np.pi],
 ]
 
 
 current_goal_ID = 0
-
 # Goal reaching thresholds
 GOAL_DISTANCE_THRESHOLD = 0.25  # meters
 GOAL_ANGLE_THRESHOLD = 0.3    # radians (~11 degrees)
@@ -37,8 +38,7 @@ goalpose = np.array(global_path[current_goal_ID])
 print(f"Current goalpose for debugging: {goalpose}")
 
 
-## Initialises a ROS node and required transform buffer objects for robot localisation
-
+## Initialises a ROS node and required transform buffer objects for robot localisation (from cookbook)
 try:
     rospy.init_node("local_planner") # <- If not already initialised, create your node here
 except: pass
@@ -46,6 +46,7 @@ except: pass
 tfBuffer = tf2_ros.Buffer()
 listener = tf2_ros.TransformListener(tfBuffer)
 
+# From cookbook
 def localiseRobot():
     """Localises the robot towards the 'map' coordinate frame. Returns pose in format (x,y,theta)"""
     while True:
@@ -66,9 +67,6 @@ def localiseRobot():
         trans.transform.translation.x,
         trans.transform.translation.y,
         theta])
-
-robotpose = localiseRobot()
-print(robotpose)
 
 def pose2tf_mat(pose):
     """
@@ -96,7 +94,6 @@ def tf_mat2pose(T):
     theta = math.atan2(T[1, 0], T[0, 0])
 
     return np.array([x, y, theta])
-
 
 def transform_goal_to_robot_frame(robot_pose, goal_pose):
     """
@@ -135,12 +132,12 @@ def generateControls(lastControl: npt.ArrayLike) -> np.ndarray:
     # -----------------------------
     # Robot control constraints
     # -----------------------------
-    v_min, v_max = -0.2, 0.5       # m/s   (reverse to slow forward)
-    w_min, w_max = -2, 2       # rad/s
+    v_min, v_max = -0.2, 0.2       # m/s   (reverse to slow forward)
+    w_min, w_max = -0.8, 0.8       # rad/s
 
     # How far we are allowed to deviate from previous control
     v_delta_max = 0.1             # m/s per timestep
-    w_delta_max = 0.8              # rad/s per timestep
+    w_delta_max = 0.8            # rad/s per timestep
 
     # -----------------------------
     # Define allowed local ranges
@@ -155,8 +152,8 @@ def generateControls(lastControl: npt.ArrayLike) -> np.ndarray:
     # Sampling resolution
     # fewer samples = faster simulation, less precision
     # -----------------------------
-    num_v_samples = 7
-    num_w_samples = 7
+    num_v_samples = 10
+    num_w_samples = 25
 
     v_values = np.linspace(v_low, v_high, num_v_samples)
     w_values = np.linspace(w_low, w_high, num_w_samples)
@@ -168,7 +165,7 @@ def generateControls(lastControl: npt.ArrayLike) -> np.ndarray:
 
     return controls
 
-
+# FROM COOKBOOK
 def forwardKinematics(control: npt.ArrayLike, lastPose: npt.ArrayLike, dt: float, dtype=np.float64) -> np.ndarray:
     """Mobile robot forward kinematics (see Thrun Probabilistic Robotics)
     """
@@ -188,6 +185,7 @@ def forwardKinematics(control: npt.ArrayLike, lastPose: npt.ArrayLike, dt: float
         wt*dt
     ], dtype=dtype)
 
+# From cookbook
 class PT2Block:
     """Discrete PT2 Block approximated using the Tustin approximation (rough robot dynamics model)
     """
@@ -245,105 +243,69 @@ def check_goal_reached(robot_pose: npt.ArrayLike, goal_pose: npt.ArrayLike) -> b
 def costFn(pose: npt.ArrayLike,
            goalpose: npt.ArrayLike,
            control: npt.ArrayLike) -> float:
-    """
-    Computes the cost of reaching `pose` when trying to reach `goalpose`
-    using control input `control`.
-
-    pose:      np.array([x, y, theta])
-    goalpose:  np.array([xg, yg, thetag])
-    control:   np.array([vt, wt])
-
-    Returns:
-        cost: float (lower is better)
-    """
 
     pose      = np.asarray(pose)
     goalpose  = np.asarray(goalpose)
     control   = np.asarray(control)
 
-    # ------------------------------------------------------------
-    # 1. Compute state error       e = x_robot - x_goal
-    # ------------------------------------------------------------
+    # State error
     e = pose - goalpose
-
-    # Wrap angle difference
     e[2] = wrap_angle(e[2])
 
-    # Take absolute values (element-wise)
-    e = np.abs(e)
+    # Distance to goal (used to scale orientation weighting)
+    dist = np.linalg.norm(e[:2])
 
-    # ------------------------------------------------------------
-    # 2. State weighting matrix Q
-    # ------------------------------------------------------------
+    # Theta weight: high when close, small when far (prevents aggressive early turns)
+    theta_base = 0.5
+    theta_floor = 0.05
+    theta_weight = theta_floor + theta_base * np.exp(-3.0 * dist)
+
+    # State weighting matrix Q
     Q = np.array([
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
-        [0.0, 0.0, 0.5]
+        [0.0, 0.0, float(theta_weight)]
     ])
 
-    # ------------------------------------------------------------
-    # 3. Control weighting matrix R
-    # ------------------------------------------------------------
+     # Penalize angular velocity more to avoid excessive turning
     R = np.array([
         [0.1, 0.0],
-        [0.0, 0.1]
+        [0.0, 0.5]   # increased penalty on angular velocity
     ])
 
-    # Absolute values of control
-    u = np.abs(control)
+    u = control
 
-    # ------------------------------------------------------------
-    # 4. Compute cost:
-    #
-    #     c = e^T Q e  +  u^T R u
-    # ------------------------------------------------------------
-    
     cost = e.T @ (Q @ e) + u.T @ (R @ u)
 
     return float(cost)
 
-def evaluateControls(controls, robotModelPT2, horizon, goalpose, ts, start_pose=None):
-    """
-    Evaluate a list of candidate controls by forward-simulating the PT2 robot model.
-
-    controls: iterable of [v, w]
-    robotModelPT2: PT2Block instance (will be deep-copied per trajectory)
-    horizon: number of simulation steps
-    goalpose: goal in the same frame as the simulated poses (e.g. robot frame)
-    ts: timestep used by forwardKinematics
-    start_pose: optional starting pose for simulation (default [0,0,0])
-
-    Returns: (costs, trajectories)
-    """
-    if start_pose is None:
-        start_pose = [0.0, 0.0, 0.0]
-
-    controls_arr = np.asarray(controls)
-    costs = np.zeros(controls_arr.shape[0], dtype=float)
-    trajectories = [ [] for _ in range(controls_arr.shape[0]) ]
-
+# From cookbook
+def evaluateControls(controls, robotModelPT2, horizon, goalpose_local):
+    costs = np.zeros_like(np.array(controls)[:,0], dtype=float)
+    trajectories = [ [] for _ in controls ]
+    
     # Apply range of control signals and compute outcomes
-    for ctrl_idx, control in enumerate(controls_arr):
-        # Copy currently predicted robot state and PT2 block
+    for ctrl_idx, control in enumerate(controls):
+    
+        # Copy currently predicted robot state
         forwardSimPT2 = copy.deepcopy(robotModelPT2)
-        forwardpose = np.array(start_pose, dtype=float)
-
+        forwardpose = [0,0,0]
+    
         # Simulate until horizon
         for step in range(horizon):
-            control_sim = np.array(control, dtype=float)
-            v_t, w_t = control_sim
-            # PT2 dynamics on translational velocity only (angular is passed through)
-            v_t_dynamic = forwardSimPT2.update(float(v_t))
-            control_dym = np.array([v_t_dynamic, w_t], dtype=float)
+            control_sim = copy.deepcopy(control)
+            v_t, w_t = control
+            v_t_dynamic = forwardSimPT2.update(v_t)
+            control_dym = [v_t_dynamic, w_t]
             forwardpose = forwardKinematics(control_dym, forwardpose, ts)
-            costs[ctrl_idx] += costFn(forwardpose, goalpose, control_sim)
+            costs[ctrl_idx] += costFn(forwardpose, goalpose_local, control_sim)
             # Track trajectory for visualisation
-            trajectories[ctrl_idx].append(forwardpose.copy())
+            trajectories[ctrl_idx].append(forwardpose)
 
     return costs, trajectories
 
-ts = 0.5 # Sampling time [sec] -> 2Hz
-horizon = 10 # Number of time steps to simulate. 10*0.5 sec = 5 seconds lookahead into the future
+ts = 1/2 # Sampling time [sec] -> 2Hz
+horizon = 5 # Number of time steps to simulate. 10*0.5 sec = 5 seconds lookahead into the future
 robotModelPT2 = PT2Block(ts=ts, T=0.05, D=0.8)
 
 cmd_pub = rospy.Publisher("/cmd_vel", Twist, queue_size=10)
@@ -387,8 +349,7 @@ def pubTrajectory(trajectory):
 
     traj_pub.publish(path_msg)
 
-
-
+robotpose = localiseRobot()
 goalpose_robot = transform_goal_to_robot_frame(robotpose, goalpose)
 
 
@@ -412,6 +373,85 @@ def pubGoal(goalpose_robot):
     goal_pub.publish(msg)
 
 
+
+## Visualise transformed goal and robot poses
+# Create single figure
+plt.rcParams['figure.figsize'] = [7, 7]
+fig, ax = plt.subplots()
+colourScheme = {
+    "darkblue": "#0D3B66",
+    "lightblue": "#FAF0CA",
+    "orange": "#F4D35E",
+    "red": "#EE964B",
+    "pink": "#F95738"
+}
+costs, trajectories = evaluateControls(generateControls([0.0, 0.0]), robotModelPT2, horizon, goalpose_robot)
+# Plot robot poses as arrows to indicate orientation
+poses = [[0,0,0], goalpose.tolist()]
+labels = ["Robot Pose", "Goal Pose"]
+colours = [colourScheme["lightblue"], colourScheme["darkblue"]]
+
+for s, l, c in zip(poses, labels, colours):
+    # Calculate arrow's dx and dy from s = [x, y, theta]
+    p2 = np.array([np.cos(s[2]), np.sin(s[2])])
+    # Scale arrow length and draw
+    p2 /= np.linalg.norm(p2)*4
+    ax.arrow(s[0], s[1], p2[0], p2[1], width=0.02, label=l, color=c)
+
+# Plot walls (from Step 1, if the variable exists)
+if 'wallPositions' in locals():
+    try: ax.scatter(wallPositions[:,1], wallPositions[:,0], c=colourScheme["darkblue"], alpha=1.0, s=6**2, label="Walls")
+    except: pass
+
+# Plot trajectories and shade with costs
+costs_scaled = (costs - costs.min())/(costs.max() - costs.min()) # Scales cost from 0-1 and emphasises low costs
+costs_inverted = 1-costs_scaled
+costs_emphasis = np.exp(3*costs_inverted-3)
+
+for traj, cost in zip(trajectories, costs_emphasis):
+    traj = np.array(traj)
+    ax.plot(traj[:,0], traj[:,1], c=colourScheme["darkblue"], alpha=(cost))
+
+# Set axes labels and figure title
+ax.set_xlabel("X-Coordinate (Robot Coordinate System) [m]")
+ax.set_ylabel("Y-Coordinate (Robot Coordinate System [m]")
+ax.set_title("Evaluated Trajectories Shaded with Cost")
+
+# Set grid to only plot each metre
+ax.set_xticks = [-1, 0, 1]
+ax.set_yticks = [-1, 0, 1]
+ax.set_xlim(-0, 1.5)
+ax.set_ylim(-0.5, 1)
+
+# Move grid behind points
+ax.set_axisbelow(True)
+ax.grid()
+
+# Add labels
+ax.legend()
+
+# Show plot
+plt.show()
+
+
+def rotate_towards_goal(robot_pose, goal_pose):
+    """
+    Stops translation and rotates robot until orientation error is small.
+    """
+    angle_error = wrap_angle(goal_pose[2] - robot_pose[2])
+
+    # Proportional turn controller
+    K_turn = 1.2 # Increase if turning is too slow
+    w = np.clip(K_turn * angle_error, -1.8, 1.8)
+
+    msg = Twist()
+    msg.linear.x = 0.0
+    msg.angular.z = w
+    cmd_pub.publish(msg)
+
+    return abs(angle_error) <= GOAL_ANGLE_THRESHOLD
+
+
 rate = rospy.Rate(1.0/ts)  # match sampling time
 last_control = np.array([0.0, 0.0], dtype=float)
 while not rospy.is_shutdown():
@@ -420,23 +460,54 @@ while not rospy.is_shutdown():
     robotpose = localiseRobot()
 
     # 2. Check if current goal is reached
-    if check_goal_reached(robotpose, global_path[current_goal_ID]):
-        # Advance to next goal
+    # For intermediate waypoints, only require position to be within threshold.
+    # For the final waypoint, require both position and orientation to be within thresholds.
+    current_goal = np.array(global_path[current_goal_ID])
+    distance_error = np.linalg.norm(robotpose[:2] - current_goal[:2])
+    angle_error = abs(wrap_angle(robotpose[2] - current_goal[2]))
+
+    position_reached = distance_error <= GOAL_DISTANCE_THRESHOLD
+    orientation_reached = angle_error <= GOAL_ANGLE_THRESHOLD
+
+    # Debug print to help understand undershoot/goal behavior
+    print(f"Goal {current_goal_ID} check -> dist: {distance_error:.3f} m, ang: {angle_error:.3f} rad")
+
+    current_goal = np.array(global_path[current_goal_ID])
+    distance_error = np.linalg.norm(robotpose[:2] - current_goal[:2])
+    angle_error = abs(wrap_angle(robotpose[2] - current_goal[2]))
+
+    # If the position is reached but not the orientation, rotate in place
+    if distance_error <= GOAL_DISTANCE_THRESHOLD and angle_error > GOAL_ANGLE_THRESHOLD:
+        print(f"Goal {current_goal_ID}: position OK, rotating to match angle...")
+        reached_angle = rotate_towards_goal(robotpose, current_goal)
+
+        # Only move on if angle is correct
+        if reached_angle:
+            print("Orientation aligned. Moving to next waypoint.")
+            current_goal_ID += 1
+
+        rate.sleep()
+        continue
+
+    # if position and angle are both within thresholds, move to next waypoint
+    if distance_error <= GOAL_DISTANCE_THRESHOLD and angle_error <= GOAL_ANGLE_THRESHOLD:
+        print(f"Waypoint {current_goal_ID} fully reached!")
+
         if current_goal_ID < len(global_path) - 1:
             current_goal_ID += 1
-            print(f"Goal reached! Moving to next goal ID: {current_goal_ID}, pose: {global_path[current_goal_ID]}")
+            print(f"Moving to next goal ID: {current_goal_ID}")
         else:
-            print("All goals reached! Path complete.")
-            # Optionally, stop the robot by sending zero velocity
+            print("Final goal reached! Stopping.")
             pubCMD(np.array([0.0, 0.0]))
             break
+
 
     # 3. Transform goal into robot frame
     goalpose_robot = transform_goal_to_robot_frame(robotpose, global_path[current_goal_ID])
 
     # 4. Generate controls and evaluate them (in robot frame)
     controls = generateControls(last_control)
-    costs, trajectories = evaluateControls(controls, robotModelPT2, horizon, goalpose_robot, ts)
+    costs, trajectories = evaluateControls(controls, robotModelPT2, horizon, goalpose_robot)
 
     # 5. Select best
     best_idx = np.argmin(costs)
