@@ -35,6 +35,15 @@ def global_path_callback(msg):
     path_received = True
     print(f"Global path received with {len(global_path)} waypoints")
 
+     # --- Print in nice Python list format ---
+    print("global_path2 = [")
+    for x, y, theta in global_path:
+        #theta_str = rad_to_pi_multiple(theta)
+        print(f"    [{x:.3f}, {y:.3f}, {theta}],")
+    print("]\n")
+
+
+
 path_sub = rospy.Subscriber("/global_path", Path, global_path_callback)
 
 # Goal reaching thresholds
@@ -314,7 +323,7 @@ def pubTrajectory(trajectory):
     traj_pub.publish(path_msg)
 
 robotpose = localiseRobot()
-goalpose_robot = transform_goal_to_robot_frame(robotpose, goalpose)
+#goalpose_robot = transform_goal_to_robot_frame(robotpose, goalpose)
 
 def pubGoal(goalpose_robot):
     x, y, theta = goalpose_robot
@@ -352,7 +361,7 @@ def rotate_towards_goal(robot_pose, goal_pose):
 
 print("Waiting for global path...")
 while not path_received and not rospy.is_shutdown():
-    rate.sleep()
+    rospy.sleep(0.1)
 
 if not path_received:
     rospy.logfatal("No global path received, shutting down local planner.")
@@ -360,6 +369,59 @@ if not path_received:
     exit(1)
 
 print("Global path received. Starting local planner...")
+
+import matplotlib.pyplot as plt
+
+# Store colours matching UAS TW colour scheme as dict 
+colourScheme = {
+    "darkblue": "#143049",
+    "twblue": "#00649C",
+    "lightblue": "#8DA3B3",
+    "lightgrey": "#CBC0D5",
+    "twgrey": "#72777A"
+}
+
+## Visualise transformed goal and robot poses
+# Create single figure
+plt.rcParams['figure.figsize'] = [7, 7]
+fig, ax = plt.subplots()
+
+positions_on_path = np.array([robotpose.tolist()] + global_path)[:,:2]
+ax.plot(positions_on_path[:,0], positions_on_path[:,1], c=colourScheme["lightblue"], alpha=0.6, label="Global Path")
+
+# Plot robot poses as arrows to indicate orientation
+for s in [robotpose.tolist()] + global_path:
+    # Calculate arrow's dx and dy from s = [x, y, theta]
+    p2 = np.array([np.cos(s[2]), np.sin(s[2])])
+    # Scale arrow length and draw
+    p2 /= np.linalg.norm(p2)*4
+    ax.arrow(s[0], s[1], p2[0], p2[1], width=0.02)
+
+# Plot walls (from Step 1, if the variable exists)
+if 'wallPositions' in locals():
+    try: ax.scatter(wallPositions[:,1], wallPositions[:,0], c=colourScheme["darkblue"], alpha=1.0, s=6**2, label="Walls")
+    except: pass
+
+# Set axes labels and figure title
+ax.set_xlabel("X-Coordinate [m]")
+ax.set_ylabel("Y-Coordinate [m]")
+ax.set_title("Global Path Resulting from Step 2")
+
+# Set grid to only plot each metre
+ax.set_xticks = [-1, 0, 1, 2, 3, 4 ]
+ax.set_yticks = [-1, 0, 1, 2, 3, 4 ]
+ax.set_xlim(-1, 4)
+ax.set_ylim(-1, 4)
+
+# Move grid behind points
+ax.set_axisbelow(True)
+ax.grid()
+
+# Add labels
+ax.legend()
+
+# Show plot
+plt.show()
 
 rate = rospy.Rate(1.0/ts)  # match sampling time
 last_control = np.array([0.0, 0.0], dtype=float)
