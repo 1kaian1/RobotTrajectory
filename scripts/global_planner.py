@@ -348,6 +348,12 @@ if __name__ == "__main__":
         # --- Compute orientations ---
         path_with_theta = compute_orientations(path_world)
 
+        # --- Print path and rotations ---
+        print("global_path = [")
+        for x, y, theta in path_with_theta:
+            print(f"    [{x:.3f}, {y:.3f}, {theta:.3f}],")
+        print("]\n")
+
         # --- Publish path ---
         publish_path(path_with_theta)
         rospy.loginfo("Global path published")
