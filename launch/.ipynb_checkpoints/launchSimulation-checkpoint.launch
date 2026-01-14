@@ -4,6 +4,7 @@
 <!-- TB3 Slam Launch: https://github.com/ROBOTIS-GIT/turtlebot3/blob/master/turtlebot3_slam/launch/turtlebot3_slam.launch -->
 <!-- TB3 rviz config: https://github.com/ROBOTIS-GIT/turtlebot3_simulations/blob/master/turtlebot3_gazebo/rviz/turtlebot3_gazebo_model.rviz -->
 
+  <param name="use_sim_time" value="true"/>
   <arg name="model" default="$(env TURTLEBOT3_MODEL)" doc="model type [burger, waffle, waffle_pi]"/>
   <arg name="x_pos" default="2.0"/>
   <arg name="y_pos" default="1.0"/>
@@ -41,6 +42,29 @@
     <rosparam file="$(find turtlebot3_navigation)/param/move_base_params.yaml" command="load" />
     <rosparam file="$(find turtlebot3_navigation)/param/dwa_local_planner_params_$(arg model).yaml" command="load" />
   </node>
+
+<node
+    pkg="soarMazeEscape"
+    type="global_planner.py"
+    name="custom_global_planner"
+    output="screen"
+    required="true"
+/>
+
+<node pkg="amcl" type="amcl" name="amcl" output="screen">
+    <param name="use_map_topic" value="true"/>
+    <param name="odom_frame_id" value="odom"/>
+    <param name="base_frame_id" value="base_footprint"/>
+    <param name="global_frame_id" value="map"/>
+    <param name="update_min_d" value="0.2"/>
+    <param name="update_min_a" value="0.2"/>
+    <param name="resample_interval" value="1"/>
+    <param name="gui_publish_rate" value="10.0"/>
+    <param name="initial_pose_x" value="2.0"/>
+    <param name="initial_pose_y" value="1.0"/>
+    <param name="initial_pose_a" value="0.0"/>
+</node>
+
 
   <!--node pkg="amcl" type="amcl" name="amcl">
     <param name="min_particles"             value="500"/>
