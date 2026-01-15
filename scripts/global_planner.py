@@ -228,6 +228,29 @@ def compute_orientations(path_world):
 
     return path_with_theta
 
+def shift_theta_forward_with_dup(path):
+    """
+    Shift thetas forward, starting with 0 for the first waypoint,
+    and duplicate each waypoint: first with previous theta, then with current theta.
+    
+    path: list of [x, y, theta]
+    returns: new list with duplicated and shifted thetas
+    """
+    if not path:
+        return []
+
+    new_path = []
+    prev_theta = 0.0  # first theta is 0
+    for i, (x, y, theta) in enumerate(path):
+        if i != 0:
+            # append waypoint with previous theta
+            new_path.append([x, y, prev_theta])
+        # append waypoint with current theta
+        new_path.append([x, y, theta])
+        prev_theta = theta  # update prev_theta for next iteration
+
+    return new_path
+
 def publish_path(path_world_theta, frame_id="map"):
     path_msg = Path()
     path_msg.header.stamp = rospy.Time.now()
@@ -347,6 +370,14 @@ if __name__ == "__main__":
 
         # --- Compute orientations ---
         path_with_theta = compute_orientations(path_world)
+
+        # --- Print path and rotations ---
+        print("global_path = [")
+        for x, y, theta in path_with_theta:
+            print(f"    [{x:.3f}, {y:.3f}, {theta:.3f}],")
+        print("]\n")
+        
+        path_with_theta = shift_theta_forward_with_dup(path_with_theta)
 
         # --- Print path and rotations ---
         print("global_path = [")

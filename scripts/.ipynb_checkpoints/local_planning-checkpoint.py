@@ -22,35 +22,35 @@ current_goal_ID = 0
 path_received = False
 
 def global_path_callback(msg):
-    global global_path, path_received
+    global global_path, path_received, current_goal_ID, final_goal_reached
 
     # Convert nav_msgs/Path to list of [x, y, theta]
     global_path = []
     for pose_stamped in msg.poses:
         x = pose_stamped.pose.position.x
         y = pose_stamped.pose.position.y
-
         quat = pose_stamped.pose.orientation
         theta = R.from_quat([quat.x, quat.y, quat.z, quat.w]).as_euler('xyz')[2]
-
         global_path.append([x, y, theta])
     
     path_received = True
+    current_goal_ID = 0          # RESET current goal
+    final_goal_reached = False    # RESET final goal flag
+
     print(f"Global path received with {len(global_path)} waypoints")
 
-     # --- Print in nice Python list format ---
     print("global_path2 = [")
     for x, y, theta in global_path:
-        #theta_str = rad_to_pi_multiple(theta)
         print(f"    [{x:.3f}, {y:.3f}, {theta}],")
     print("]\n")
+
 
 
 
 path_sub = rospy.Subscriber("/global_path", Path, global_path_callback)
 
 # Goal reaching thresholds
-GOAL_DISTANCE_THRESHOLD = 0.125
+GOAL_DISTANCE_THRESHOLD = 0.2
 GOAL_ANGLE_THRESHOLD = 0.05
 
 
@@ -438,69 +438,63 @@ print("Global path received. Starting local planner...")
 
 rate = rospy.Rate(1.0/ts)  # match sampling time
 last_control = np.array([0.0, 0.0], dtype=float)
+final_goal_reached = False
+current_goal_ID = 0
+
 while not rospy.is_shutdown():
+
+    # --- check if global path is empty or current_goal_ID out of bounds ---
+    if not global_path or current_goal_ID >= len(global_path):
+        # stop the robot but keep simulation alive
+        pubCMD(np.array([0.0, 0.0]))
+        rospy.sleep(0.1)
+        continue  # just wait for a valid path
 
     # Localize robot
     robotpose = localiseRobot()
 
-    # Check if current goal is reached
+    # Current goal
     current_goal = np.array(global_path[current_goal_ID])
     distance_error = np.linalg.norm(robotpose[:2] - current_goal[:2])
     angle_error = abs(wrap_angle(robotpose[2] - current_goal[2]))
 
-    # If position is reached but orientation is not, rotate in place
+    # Rotate in place if position reached but angle not
     if distance_error <= GOAL_DISTANCE_THRESHOLD and angle_error > GOAL_ANGLE_THRESHOLD:
-        print(f"Goal {current_goal_ID}: position reached, rotating to match angle...")
         reached_angle = rotate_towards_goal(robotpose, current_goal)
-
-        # Only move on if angle is correct
         if reached_angle:
-            print("Orientation aligned. Moving to next waypoint.")
             current_goal_ID += 1
-
         rate.sleep()
         continue
 
-    # If position and angle are both within thresholds, move to next waypoint
+    # If position and angle within threshold
     if distance_error <= GOAL_DISTANCE_THRESHOLD and angle_error <= GOAL_ANGLE_THRESHOLD:
-        print(f"Waypoint {current_goal_ID} fully reached!")
-
         if current_goal_ID < len(global_path) - 1:
             current_goal_ID += 1
-            print(f"Moving to next goal ID: {current_goal_ID}")
         else:
-            print("Final goal reached! Stopping.")
-            pubCMD(np.array([0.0, 0.0]))
-            break 
+            final_goal_reached = True
+
+    # Stop robot if final goal reached
+    if final_goal_reached:
+        pubCMD(np.array([0.0, 0.0]))
+        rate.sleep()
+        continue  # keep node alive
 
     # Transform goal into robot frame
     goalpose_robot = transform_goal_to_robot_frame(robotpose, global_path[current_goal_ID])
 
-    # Generate controls and evaluate them (in robot frame)
+    # Generate controls and evaluate them
     controls = generateControls(last_control)
     costs, trajectories = evaluateControls(controls, robotModelPT2, horizon, goalpose_robot)
 
-    # Select best
     best_idx = np.argmin(costs)
     best_control = controls[best_idx]
     best_trajectory = trajectories[best_idx]
 
     publish_all_trajectories(trajectories, costs)
     publish_best_trajectory(best_trajectory)
-
-    
-
-    # Publish cmd_vel
     pubCMD(best_control)
-
-     # Publish predicted path
     pubTrajectory(best_trajectory)
-
-    # Publish local goal in robot frame
-    goalpose_robot = transform_goal_to_robot_frame(robotpose, current_goal)
     pubGoal(goalpose_robot)
-
-    # Remember last control
     last_control = best_control
 
     rate.sleep()
