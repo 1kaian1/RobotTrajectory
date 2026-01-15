@@ -48,7 +48,7 @@ path_sub = rospy.Subscriber("/global_path", Path, global_path_callback)
 
 # Goal reaching thresholds
 GOAL_DISTANCE_THRESHOLD = 0.25
-GOAL_ANGLE_THRESHOLD = 0.3
+GOAL_ANGLE_THRESHOLD = 0.05
 
 
 ## Initialises a ROS node and required transform buffer objects for robot localisation (from cookbook)
@@ -230,16 +230,11 @@ def costFn(pose: npt.ArrayLike,
     # Distance to goal (used to scale orientation weighting)
     dist = np.linalg.norm(e[:2])
 
-    # Theta weight: high when close, small when far (prevents aggressive early turns)
-    theta_base = 0.5
-    theta_floor = 0.05
-    theta_weight = theta_floor + theta_base * np.exp(-3.0 * dist)
-
     # State weighting matrix Q
     Q = np.array([
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
-        [0.0, 0.0, float(theta_weight)]
+        [0.0, 0.0, 0.0]
     ])
 
      # Penalize angular velocity more to avoid excessive turning
@@ -370,59 +365,6 @@ if not path_received:
 
 print("Global path received. Starting local planner...")
 
-import matplotlib.pyplot as plt
-
-# Store colours matching UAS TW colour scheme as dict 
-colourScheme = {
-    "darkblue": "#143049",
-    "twblue": "#00649C",
-    "lightblue": "#8DA3B3",
-    "lightgrey": "#CBC0D5",
-    "twgrey": "#72777A"
-}
-
-## Visualise transformed goal and robot poses
-# Create single figure
-plt.rcParams['figure.figsize'] = [7, 7]
-fig, ax = plt.subplots()
-
-positions_on_path = np.array([robotpose.tolist()] + global_path)[:,:2]
-ax.plot(positions_on_path[:,0], positions_on_path[:,1], c=colourScheme["lightblue"], alpha=0.6, label="Global Path")
-
-# Plot robot poses as arrows to indicate orientation
-for s in [robotpose.tolist()] + global_path:
-    # Calculate arrow's dx and dy from s = [x, y, theta]
-    p2 = np.array([np.cos(s[2]), np.sin(s[2])])
-    # Scale arrow length and draw
-    p2 /= np.linalg.norm(p2)*4
-    ax.arrow(s[0], s[1], p2[0], p2[1], width=0.02)
-
-# Plot walls (from Step 1, if the variable exists)
-if 'wallPositions' in locals():
-    try: ax.scatter(wallPositions[:,1], wallPositions[:,0], c=colourScheme["darkblue"], alpha=1.0, s=6**2, label="Walls")
-    except: pass
-
-# Set axes labels and figure title
-ax.set_xlabel("X-Coordinate [m]")
-ax.set_ylabel("Y-Coordinate [m]")
-ax.set_title("Global Path Resulting from Step 2")
-
-# Set grid to only plot each metre
-ax.set_xticks = [-1, 0, 1, 2, 3, 4 ]
-ax.set_yticks = [-1, 0, 1, 2, 3, 4 ]
-ax.set_xlim(-1, 4)
-ax.set_ylim(-1, 4)
-
-# Move grid behind points
-ax.set_axisbelow(True)
-ax.grid()
-
-# Add labels
-ax.legend()
-
-# Show plot
-plt.show()
-
 rate = rospy.Rate(1.0/ts)  # match sampling time
 last_control = np.array([0.0, 0.0], dtype=float)
 while not rospy.is_shutdown():
@@ -435,9 +377,9 @@ while not rospy.is_shutdown():
     distance_error = np.linalg.norm(robotpose[:2] - current_goal[:2])
     angle_error = abs(wrap_angle(robotpose[2] - current_goal[2]))
 
-    # If the position is reached but not the orientation, rotate in place
+    # If position is reached but orientation is not, rotate in place
     if distance_error <= GOAL_DISTANCE_THRESHOLD and angle_error > GOAL_ANGLE_THRESHOLD:
-        print(f"Goal {current_goal_ID}: position OK, rotating to match angle...")
+        print(f"Goal {current_goal_ID}: position reached, rotating to match angle...")
         reached_angle = rotate_towards_goal(robotpose, current_goal)
 
         # Only move on if angle is correct
@@ -448,7 +390,7 @@ while not rospy.is_shutdown():
         rate.sleep()
         continue
 
-    # if position and angle are both within thresholds, move to next waypoint
+    # If position and angle are both within thresholds, move to next waypoint
     if distance_error <= GOAL_DISTANCE_THRESHOLD and angle_error <= GOAL_ANGLE_THRESHOLD:
         print(f"Waypoint {current_goal_ID} fully reached!")
 
@@ -458,8 +400,7 @@ while not rospy.is_shutdown():
         else:
             print("Final goal reached! Stopping.")
             pubCMD(np.array([0.0, 0.0]))
-            break
-
+            break 
 
     # Transform goal into robot frame
     goalpose_robot = transform_goal_to_robot_frame(robotpose, global_path[current_goal_ID])
@@ -472,14 +413,16 @@ while not rospy.is_shutdown():
     best_idx = np.argmin(costs)
     best_control = controls[best_idx]
     best_trajectory = trajectories[best_idx]
+    
 
     # Publish cmd_vel
     pubCMD(best_control)
 
-    # Publish predicted path
+     # Publish predicted path
     pubTrajectory(best_trajectory)
 
-    # Publish local goal
+    # Publish local goal in robot frame
+    goalpose_robot = transform_goal_to_robot_frame(robotpose, current_goal)
     pubGoal(goalpose_robot)
 
     # Remember last control
