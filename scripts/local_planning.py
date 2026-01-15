@@ -12,6 +12,9 @@ from nav_msgs.msg import Path
 from std_msgs.msg import Header
 from geometry_msgs.msg import Pose
 import matplotlib.pyplot as plt
+from visualization_msgs.msg import Marker, MarkerArray
+from geometry_msgs.msg import Point
+
 
 
 global_path = None
@@ -47,7 +50,7 @@ def global_path_callback(msg):
 path_sub = rospy.Subscriber("/global_path", Path, global_path_callback)
 
 # Goal reaching thresholds
-GOAL_DISTANCE_THRESHOLD = 0.25
+GOAL_DISTANCE_THRESHOLD = 0.125
 GOAL_ANGLE_THRESHOLD = 0.05
 
 
@@ -234,7 +237,7 @@ def costFn(pose: npt.ArrayLike,
     Q = np.array([
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
-        [0.0, 0.0, 0.0]
+        [0.0, 0.0, 0.1]
     ])
 
      # Penalize angular velocity more to avoid excessive turning
@@ -274,6 +277,68 @@ def evaluateControls(controls, robotModelPT2, horizon, goalpose_local):
 
     return costs, trajectories
 
+def publish_all_trajectories(trajectories, costs):
+    marker_array = MarkerArray()
+
+    min_cost = min(costs)
+    max_cost = max(costs)
+    cost_range = max_cost - min_cost if max_cost != min_cost else 1.0
+
+    for i, traj in enumerate(trajectories):
+        m = Marker()
+        m.header.frame_id = "base_link"   # nebo "map" podle toho, v čem počítáš
+        m.header.stamp = rospy.Time.now()
+        m.ns = "local_trajectories"
+        m.id = i
+        m.type = Marker.LINE_STRIP
+        m.action = Marker.ADD
+        m.scale.x = 0.01   # tloušťka čáry
+
+        # Normalizace ceny 0..1
+        norm = (costs[i] - min_cost) / cost_range
+
+        # Barva: zelená (dobrá) -> červená (špatná)
+        m.color.r = norm
+        m.color.g = 1.0 - norm
+        m.color.b = 0.0
+        m.color.a = 0.6
+
+        for pose in traj:
+            p = Point()
+            p.x = pose[0]
+            p.y = pose[1]
+            p.z = 0.02
+            m.points.append(p)
+
+        marker_array.markers.append(m)
+
+    traj_viz_pub.publish(marker_array)
+
+def publish_best_trajectory(traj):
+    m = Marker()
+    m.header.frame_id = "base_link"
+    m.header.stamp = rospy.Time.now()
+    m.ns = "best_trajectory"
+    m.id = 0
+    m.type = Marker.LINE_STRIP
+    m.action = Marker.ADD
+    m.scale.x = 0.03
+
+    m.color.r = 0.0
+    m.color.g = 0.0
+    m.color.b = 1.0
+    m.color.a = 1.0
+
+    for pose in traj:
+        p = Point()
+        p.x = pose[0]
+        p.y = pose[1]
+        p.z = 0.03
+        m.points.append(p)
+
+    traj_viz_pub.publish(MarkerArray(markers=[m]))
+
+
 ts = 1/2 # Sampling time [sec] -> 2Hz
 horizon = 5 # Number of time steps to simulate. 10*0.5 sec = 5 seconds lookahead into the future
 robotModelPT2 = PT2Block(ts=ts, T=0.05, D=0.8)
@@ -281,6 +346,12 @@ robotModelPT2 = PT2Block(ts=ts, T=0.05, D=0.8)
 cmd_pub = rospy.Publisher("/cmd_vel", Twist, queue_size=10)
 traj_pub = rospy.Publisher("/local_plan", Path, queue_size=10)
 goal_pub = rospy.Publisher("/local_goal", PoseStamped, queue_size=10)
+traj_viz_pub = rospy.Publisher(
+    "/all_local_trajectories",
+    MarkerArray,
+    queue_size=1
+)
+
 
 def pubCMD(best_control):
     v, w = best_control
@@ -413,6 +484,10 @@ while not rospy.is_shutdown():
     best_idx = np.argmin(costs)
     best_control = controls[best_idx]
     best_trajectory = trajectories[best_idx]
+
+    publish_all_trajectories(trajectories, costs)
+    publish_best_trajectory(best_trajectory)
+
     
 
     # Publish cmd_vel

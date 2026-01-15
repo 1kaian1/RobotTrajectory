@@ -12,6 +12,9 @@ from nav_msgs.msg import Path
 from std_msgs.msg import Header
 from geometry_msgs.msg import Pose
 import matplotlib.pyplot as plt
+from visualization_msgs.msg import Marker, MarkerArray
+from geometry_msgs.msg import Point
+
 
 
 global_path = None
@@ -43,11 +46,12 @@ def global_path_callback(msg):
     print("]\n")
 
 
+
 path_sub = rospy.Subscriber("/global_path", Path, global_path_callback)
 
 # Goal reaching thresholds
-GOAL_DISTANCE_THRESHOLD = 0.25
-GOAL_ANGLE_THRESHOLD = 0.3
+GOAL_DISTANCE_THRESHOLD = 0.125
+GOAL_ANGLE_THRESHOLD = 0.05
 
 
 ## Initialises a ROS node and required transform buffer objects for robot localisation (from cookbook)
@@ -229,16 +233,11 @@ def costFn(pose: npt.ArrayLike,
     # Distance to goal (used to scale orientation weighting)
     dist = np.linalg.norm(e[:2])
 
-    # Theta weight: high when close, small when far (prevents aggressive early turns)
-    theta_base = 0.5
-    theta_floor = 0.05
-    theta_weight = theta_floor + theta_base * np.exp(-3.0 * dist)
-
     # State weighting matrix Q
     Q = np.array([
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
-        [0.0, 0.0, float(theta_weight)]
+        [0.0, 0.0, 0.1]
     ])
 
      # Penalize angular velocity more to avoid excessive turning
@@ -278,6 +277,68 @@ def evaluateControls(controls, robotModelPT2, horizon, goalpose_local):
 
     return costs, trajectories
 
+def publish_all_trajectories(trajectories, costs):
+    marker_array = MarkerArray()
+
+    min_cost = min(costs)
+    max_cost = max(costs)
+    cost_range = max_cost - min_cost if max_cost != min_cost else 1.0
+
+    for i, traj in enumerate(trajectories):
+        m = Marker()
+        m.header.frame_id = "base_link"   # nebo "map" podle toho, v čem počítáš
+        m.header.stamp = rospy.Time.now()
+        m.ns = "local_trajectories"
+        m.id = i
+        m.type = Marker.LINE_STRIP
+        m.action = Marker.ADD
+        m.scale.x = 0.01   # tloušťka čáry
+
+        # Normalizace ceny 0..1
+        norm = (costs[i] - min_cost) / cost_range
+
+        # Barva: zelená (dobrá) -> červená (špatná)
+        m.color.r = norm
+        m.color.g = 1.0 - norm
+        m.color.b = 0.0
+        m.color.a = 0.6
+
+        for pose in traj:
+            p = Point()
+            p.x = pose[0]
+            p.y = pose[1]
+            p.z = 0.02
+            m.points.append(p)
+
+        marker_array.markers.append(m)
+
+    traj_viz_pub.publish(marker_array)
+
+def publish_best_trajectory(traj):
+    m = Marker()
+    m.header.frame_id = "base_link"
+    m.header.stamp = rospy.Time.now()
+    m.ns = "best_trajectory"
+    m.id = 0
+    m.type = Marker.LINE_STRIP
+    m.action = Marker.ADD
+    m.scale.x = 0.03
+
+    m.color.r = 0.0
+    m.color.g = 0.0
+    m.color.b = 1.0
+    m.color.a = 1.0
+
+    for pose in traj:
+        p = Point()
+        p.x = pose[0]
+        p.y = pose[1]
+        p.z = 0.03
+        m.points.append(p)
+
+    traj_viz_pub.publish(MarkerArray(markers=[m]))
+
+
 ts = 1/2 # Sampling time [sec] -> 2Hz
 horizon = 5 # Number of time steps to simulate. 10*0.5 sec = 5 seconds lookahead into the future
 robotModelPT2 = PT2Block(ts=ts, T=0.05, D=0.8)
@@ -285,6 +346,12 @@ robotModelPT2 = PT2Block(ts=ts, T=0.05, D=0.8)
 cmd_pub = rospy.Publisher("/cmd_vel", Twist, queue_size=10)
 traj_pub = rospy.Publisher("/local_plan", Path, queue_size=10)
 goal_pub = rospy.Publisher("/local_goal", PoseStamped, queue_size=10)
+traj_viz_pub = rospy.Publisher(
+    "/all_local_trajectories",
+    MarkerArray,
+    queue_size=1
+)
+
 
 def pubCMD(best_control):
     v, w = best_control
@@ -381,9 +448,9 @@ while not rospy.is_shutdown():
     distance_error = np.linalg.norm(robotpose[:2] - current_goal[:2])
     angle_error = abs(wrap_angle(robotpose[2] - current_goal[2]))
 
-    # If the position is reached but not the orientation, rotate in place
+    # If position is reached but orientation is not, rotate in place
     if distance_error <= GOAL_DISTANCE_THRESHOLD and angle_error > GOAL_ANGLE_THRESHOLD:
-        print(f"Goal {current_goal_ID}: position OK, rotating to match angle...")
+        print(f"Goal {current_goal_ID}: position reached, rotating to match angle...")
         reached_angle = rotate_towards_goal(robotpose, current_goal)
 
         # Only move on if angle is correct
@@ -394,7 +461,7 @@ while not rospy.is_shutdown():
         rate.sleep()
         continue
 
-    # if position and angle are both within thresholds, move to next waypoint
+    # If position and angle are both within thresholds, move to next waypoint
     if distance_error <= GOAL_DISTANCE_THRESHOLD and angle_error <= GOAL_ANGLE_THRESHOLD:
         print(f"Waypoint {current_goal_ID} fully reached!")
 
@@ -404,8 +471,7 @@ while not rospy.is_shutdown():
         else:
             print("Final goal reached! Stopping.")
             pubCMD(np.array([0.0, 0.0]))
-            break
-
+            break 
 
     # Transform goal into robot frame
     goalpose_robot = transform_goal_to_robot_frame(robotpose, global_path[current_goal_ID])
@@ -419,13 +485,19 @@ while not rospy.is_shutdown():
     best_control = controls[best_idx]
     best_trajectory = trajectories[best_idx]
 
+    publish_all_trajectories(trajectories, costs)
+    publish_best_trajectory(best_trajectory)
+
+    
+
     # Publish cmd_vel
     pubCMD(best_control)
 
-    # Publish predicted path
+     # Publish predicted path
     pubTrajectory(best_trajectory)
 
-    # Publish local goal
+    # Publish local goal in robot frame
+    goalpose_robot = transform_goal_to_robot_frame(robotpose, current_goal)
     pubGoal(goalpose_robot)
 
     # Remember last control
