@@ -270,26 +270,11 @@
 </dd></dl>
 
 <dl class="py function">
-<dt class="sig sig-object py" id="global_planner.print_path">
-<span class="sig-prename descclassname"><span class="pre">global_planner.</span></span><span class="sig-name descname"><span class="pre">print_path</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path_theta</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">title</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#global_planner.print_path" title="Permalink to this definition">¶</a></dt>
-<dd><p>Print path to console for debugging.</p>
-<section id="id16">
-<h2>Parameters<a class="headerlink" href="#id16" title="Permalink to this heading">¶</a></h2>
-<dl class="simple">
-<dt>path_theta<span class="classifier">list[tuple[float,float,float]]</span></dt><dd><p>Path with orientations</p>
-</dd>
-<dt>title<span class="classifier">str</span></dt><dd><p>Title to print above the path</p>
-</dd>
-</dl>
-</section>
-</dd></dl>
-
-<dl class="py function">
 <dt class="sig sig-object py" id="global_planner.publish_costmap">
 <span class="sig-prename descclassname"><span class="pre">global_planner.</span></span><span class="sig-name descname"><span class="pre">publish_costmap</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">costmap</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rec_map</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">frame_id</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'map'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#global_planner.publish_costmap" title="Permalink to this definition">¶</a></dt>
 <dd><p>Publish soft costmap as OccupancyGrid to ROS.</p>
-<section id="id17">
-<h2>Parameters<a class="headerlink" href="#id17" title="Permalink to this heading">¶</a></h2>
+<section id="id16">
+<h2>Parameters<a class="headerlink" href="#id16" title="Permalink to this heading">¶</a></h2>
 <dl class="simple">
 <dt>costmap<span class="classifier">np.ndarray</span></dt><dd><p>Soft costmap</p>
 </dd>
@@ -305,8 +290,8 @@
 <dt class="sig sig-object py" id="global_planner.publish_path">
 <span class="sig-prename descclassname"><span class="pre">global_planner.</span></span><span class="sig-name descname"><span class="pre">publish_path</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path_world_theta</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">frame_id</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'map'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#global_planner.publish_path" title="Permalink to this definition">¶</a></dt>
 <dd><p>Publish path as nav_msgs/Path to ROS.</p>
-<section id="id18">
-<h2>Parameters<a class="headerlink" href="#id18" title="Permalink to this heading">¶</a></h2>
+<section id="id17">
+<h2>Parameters<a class="headerlink" href="#id17" title="Permalink to this heading">¶</a></h2>
 <dl class="simple">
 <dt>path_world_theta<span class="classifier">list[tuple[float,float,float]]</span></dt><dd><p>Path with orientation</p>
 </dd>
@@ -320,8 +305,8 @@
 <dt class="sig sig-object py" id="global_planner.publish_search">
 <span class="sig-prename descclassname"><span class="pre">global_planner.</span></span><span class="sig-name descname"><span class="pre">publish_search</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">search_grid</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rec_map</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#global_planner.publish_search" title="Permalink to this definition">¶</a></dt>
 <dd><p>Publish Dijkstra search visualization as OccupancyGrid.</p>
-<section id="id19">
-<h2>Parameters<a class="headerlink" href="#id19" title="Permalink to this heading">¶</a></h2>
+<section id="id18">
+<h2>Parameters<a class="headerlink" href="#id18" title="Permalink to this heading">¶</a></h2>
 <dl class="simple">
 <dt>search_grid<span class="classifier">np.ndarray</span></dt><dd><p>Grid showing search progress</p>
 </dd>
@@ -335,8 +320,8 @@
 <dt class="sig sig-object py" id="global_planner.reconstruct_path">
 <span class="sig-prename descclassname"><span class="pre">global_planner.</span></span><span class="sig-name descname"><span class="pre">reconstruct_path</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">previous</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">goal_cell</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#global_planner.reconstruct_path" title="Permalink to this definition">¶</a></dt>
 <dd><p>Reconstruct path from parent mapping.</p>
-<section id="id20">
-<h2>Parameters<a class="headerlink" href="#id20" title="Permalink to this heading">¶</a></h2>
+<section id="id19">
+<h2>Parameters<a class="headerlink" href="#id19" title="Permalink to this heading">¶</a></h2>
 <dl class="simple">
 <dt>previous<span class="classifier">dict</span></dt><dd><p>Parent mapping from Dijkstra</p>
 </dd>
@@ -344,8 +329,8 @@
 </dd>
 </dl>
 </section>
-<section id="id21">
-<h2>Returns<a class="headerlink" href="#id21" title="Permalink to this heading">¶</a></h2>
+<section id="id20">
+<h2>Returns<a class="headerlink" href="#id20" title="Permalink to this heading">¶</a></h2>
 <dl class="simple">
 <dt>path<span class="classifier">list[tuple[int, int]]</span></dt><dd><p>Ordered path from start to goal</p>
 </dd>
@@ -363,15 +348,15 @@
 <dt class="sig sig-object py" id="global_planner.shift_theta_forward_with_dup">
 <span class="sig-prename descclassname"><span class="pre">global_planner.</span></span><span class="sig-name descname"><span class="pre">shift_theta_forward_with_dup</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#global_planner.shift_theta_forward_with_dup" title="Permalink to this definition">¶</a></dt>
 <dd><p>Duplicate waypoints to enforce rotation in place.</p>
-<section id="id22">
-<h2>Parameters<a class="headerlink" href="#id22" title="Permalink to this heading">¶</a></h2>
+<section id="id21">
+<h2>Parameters<a class="headerlink" href="#id21" title="Permalink to this heading">¶</a></h2>
 <dl class="simple">
 <dt>path<span class="classifier">list[tuple[float,float,float]]</span></dt><dd><p>Original path</p>
 </dd>
 </dl>
 </section>
-<section id="id23">
-<h2>Returns<a class="headerlink" href="#id23" title="Permalink to this heading">¶</a></h2>
+<section id="id22">
+<h2>Returns<a class="headerlink" href="#id22" title="Permalink to this heading">¶</a></h2>
 <dl class="simple">
 <dt>new_path<span class="classifier">list[list[float,float,float]]</span></dt><dd><p>Path with duplicated points for orientation adjustment</p>
 </dd>
@@ -383,8 +368,8 @@
 <dt class="sig sig-object py" id="global_planner.world_to_grid">
 <span class="sig-prename descclassname"><span class="pre">global_planner.</span></span><span class="sig-name descname"><span class="pre">world_to_grid</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">y</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">origin_x</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">origin_y</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">resolution</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#global_planner.world_to_grid" title="Permalink to this definition">¶</a></dt>
 <dd><p>Convert world coordinates to grid indices.</p>
-<section id="id24">
-<h2>Parameters<a class="headerlink" href="#id24" title="Permalink to this heading">¶</a></h2>
+<section id="id23">
+<h2>Parameters<a class="headerlink" href="#id23" title="Permalink to this heading">¶</a></h2>
 <dl class="simple">
 <dt>x, y<span class="classifier">float</span></dt><dd><p>World coordinates</p>
 </dd>
@@ -394,8 +379,8 @@
 </dd>
 </dl>
 </section>
-<section id="id25">
-<h2>Returns<a class="headerlink" href="#id25" title="Permalink to this heading">¶</a></h2>
+<section id="id24">
+<h2>Returns<a class="headerlink" href="#id24" title="Permalink to this heading">¶</a></h2>
 <dl class="simple">
 <dt>row, col<span class="classifier">int</span></dt><dd><p>Grid indices corresponding to world coordinates</p>
 </dd>
@@ -454,8 +439,8 @@
 <dt class="sig sig-object py" id="local_planning.check_goal_reached">
 <span class="sig-prename descclassname"><span class="pre">local_planning.</span></span><span class="sig-name descname"><span class="pre">check_goal_reached</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">robot_pose</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">goal_pose</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#local_planning.check_goal_reached" title="Permalink to this definition">¶</a></dt>
 <dd><p>Check if the robot is close enough to the goal (position and orientation).</p>
-<section id="id26">
-<h2>Parameters<a class="headerlink" href="#id26" title="Permalink to this heading">¶</a></h2>
+<section id="id25">
+<h2>Parameters<a class="headerlink" href="#id25" title="Permalink to this heading">¶</a></h2>
 <dl class="simple">
 <dt>robot_pose<span class="classifier">np.ndarray</span></dt><dd><p>Current robot pose [x, y, theta].</p>
 </dd>
@@ -463,8 +448,8 @@
 </dd>
 </dl>
 </section>
-<section id="id27">
-<h2>Returns<a class="headerlink" href="#id27" title="Permalink to this heading">¶</a></h2>
+<section id="id26">
+<h2>Returns<a class="headerlink" href="#id26" title="Permalink to this heading">¶</a></h2>
 <dl class="simple">
 <dt>bool</dt><dd><p>True if both position and orientation are within thresholds.</p>
 </dd>
@@ -476,8 +461,8 @@
 <dt class="sig sig-object py" id="local_planning.costFn">
 <span class="sig-prename descclassname"><span class="pre">local_planning.</span></span><span class="sig-name descname"><span class="pre">costFn</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">pose</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">goalpose</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">control</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#local_planning.costFn" title="Permalink to this definition">¶</a></dt>
 <dd><p>Quadratic cost function penalizing deviation from goal and control effort.</p>
-<section id="id28">
-<h2>Parameters<a class="headerlink" href="#id28" title="Permalink to this heading">¶</a></h2>
+<section id="id27">
+<h2>Parameters<a class="headerlink" href="#id27" title="Permalink to this heading">¶</a></h2>
 <dl class="simple">
 <dt>pose<span class="classifier">np.ndarray</span></dt><dd><p>Robot pose [x, y, theta] in robot frame.</p>
 </dd>
@@ -487,8 +472,8 @@
 </dd>
 </dl>
 </section>
-<section id="id29">
-<h2>Returns<a class="headerlink" href="#id29" title="Permalink to this heading">¶</a></h2>
+<section id="id28">
+<h2>Returns<a class="headerlink" href="#id28" title="Permalink to this heading">¶</a></h2>
 <dl class="simple">
 <dt>float</dt><dd><p>Cost value.</p>
 </dd>
@@ -506,8 +491,8 @@
 <dt class="sig sig-object py" id="local_planning.evaluateControls">
 <span class="sig-prename descclassname"><span class="pre">local_planning.</span></span><span class="sig-name descname"><span class="pre">evaluateControls</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">controls</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">robotModelPT2</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">horizon</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">goalpose_local</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ts</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#local_planning.evaluateControls" title="Permalink to this definition">¶</a></dt>
 <dd><p>Simulate all candidate controls and evaluate their costs.</p>
-<section id="id30">
-<h2>Parameters<a class="headerlink" href="#id30" title="Permalink to this heading">¶</a></h2>
+<section id="id29">
+<h2>Parameters<a class="headerlink" href="#id29" title="Permalink to this heading">¶</a></h2>
 <dl class="simple">
 <dt>controls<span class="classifier">np.ndarray</span></dt><dd><p>Candidate controls [[v, w], …].</p>
 </dd>
@@ -521,8 +506,8 @@
 </dd>
 </dl>
 </section>
-<section id="id31">
-<h2>Returns<a class="headerlink" href="#id31" title="Permalink to this heading">¶</a></h2>
+<section id="id30">
+<h2>Returns<a class="headerlink" href="#id30" title="Permalink to this heading">¶</a></h2>
 <dl class="simple">
 <dt>costs<span class="classifier">np.ndarray</span></dt><dd><p>Cost of each control.</p>
 </dd>
@@ -542,8 +527,8 @@
 <dt class="sig sig-object py" id="local_planning.forwardKinematics">
 <span class="sig-prename descclassname"><span class="pre">local_planning.</span></span><span class="sig-name descname"><span class="pre">forwardKinematics</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">control</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">lastPose</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dt</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#local_planning.forwardKinematics" title="Permalink to this definition">¶</a></dt>
 <dd><p>Differential drive forward kinematics.</p>
-<section id="id32">
-<h2>Parameters<a class="headerlink" href="#id32" title="Permalink to this heading">¶</a></h2>
+<section id="id31">
+<h2>Parameters<a class="headerlink" href="#id31" title="Permalink to this heading">¶</a></h2>
 <dl class="simple">
 <dt>control<span class="classifier">list or np.ndarray</span></dt><dd><p>Control input [v, w].</p>
 </dd>
@@ -553,8 +538,8 @@
 </dd>
 </dl>
 </section>
-<section id="id33">
-<h2>Returns<a class="headerlink" href="#id33" title="Permalink to this heading">¶</a></h2>
+<section id="id32">
+<h2>Returns<a class="headerlink" href="#id32" title="Permalink to this heading">¶</a></h2>
 <dl class="simple">
 <dt>np.ndarray</dt><dd><p>New pose [x, y, theta].</p>
 </dd>
@@ -566,15 +551,15 @@
 <dt class="sig sig-object py" id="local_planning.generateControls">
 <span class="sig-prename descclassname"><span class="pre">local_planning.</span></span><span class="sig-name descname"><span class="pre">generateControls</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">lastControl</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">numpy.typing.ArrayLike</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">numpy.ndarray</span></span></span><a class="headerlink" href="#local_planning.generateControls" title="Permalink to this definition">¶</a></dt>
 <dd><p>Generate candidate (v, w) velocity controls around previous command.</p>
-<section id="id34">
-<h2>Parameters<a class="headerlink" href="#id34" title="Permalink to this heading">¶</a></h2>
+<section id="id33">
+<h2>Parameters<a class="headerlink" href="#id33" title="Permalink to this heading">¶</a></h2>
 <dl class="simple">
 <dt>lastControl<span class="classifier">array-like</span></dt><dd><p>Last commanded velocities [v, w].</p>
 </dd>
 </dl>
 </section>
-<section id="id35">
-<h2>Returns<a class="headerlink" href="#id35" title="Permalink to this heading">¶</a></h2>
+<section id="id34">
+<h2>Returns<a class="headerlink" href="#id34" title="Permalink to this heading">¶</a></h2>
 <dl class="simple">
 <dt>np.ndarray</dt><dd><p>Array of candidate controls [[v1, w1], [v2, w2], …].</p>
 </dd>
@@ -600,15 +585,15 @@ Resets goal index and final goal flag.</p>
 <dt class="sig sig-object py" id="local_planning.localiseRobot">
 <span class="sig-prename descclassname"><span class="pre">local_planning.</span></span><span class="sig-name descname"><span class="pre">localiseRobot</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">tfBuffer</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#local_planning.localiseRobot" title="Permalink to this definition">¶</a></dt>
 <dd><p>Returns robot pose in map frame as [x, y, theta].</p>
-<section id="id36">
-<h2>Parameters<a class="headerlink" href="#id36" title="Permalink to this heading">¶</a></h2>
+<section id="id35">
+<h2>Parameters<a class="headerlink" href="#id35" title="Permalink to this heading">¶</a></h2>
 <dl class="simple">
 <dt>tfBuffer<span class="classifier">tf2_ros.Buffer</span></dt><dd><p>TF buffer to lookup robot transform.</p>
 </dd>
 </dl>
 </section>
-<section id="id37">
-<h2>Returns<a class="headerlink" href="#id37" title="Permalink to this heading">¶</a></h2>
+<section id="id36">
+<h2>Returns<a class="headerlink" href="#id36" title="Permalink to this heading">¶</a></h2>
 <dl class="simple">
 <dt>np.ndarray or None</dt><dd><p>Robot pose [x, y, theta] in map frame, or None if TF not available.</p>
 </dd>
@@ -632,8 +617,8 @@ Resets goal index and final goal flag.</p>
 <dt class="sig sig-object py" id="local_planning.pubCMD">
 <span class="sig-prename descclassname"><span class="pre">local_planning.</span></span><span class="sig-name descname"><span class="pre">pubCMD</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">control</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cmd_pub</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#local_planning.pubCMD" title="Permalink to this definition">¶</a></dt>
 <dd><p>Publish velocity command to /cmd_vel.</p>
-<section id="id38">
-<h2>Parameters<a class="headerlink" href="#id38" title="Permalink to this heading">¶</a></h2>
+<section id="id37">
+<h2>Parameters<a class="headerlink" href="#id37" title="Permalink to this heading">¶</a></h2>
 <dl class="simple">
 <dt>control<span class="classifier">[v, w]</span></dt><dd><p>Linear and angular velocity.</p>
 </dd>
@@ -647,8 +632,8 @@ Resets goal index and final goal flag.</p>
 <dt class="sig sig-object py" id="local_planning.pubGoal">
 <span class="sig-prename descclassname"><span class="pre">local_planning.</span></span><span class="sig-name descname"><span class="pre">pubGoal</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">goal_robot</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">goal_pub</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#local_planning.pubGoal" title="Permalink to this definition">¶</a></dt>
 <dd><p>Publish local goal as PoseStamped.</p>
-<section id="id39">
-<h2>Parameters<a class="headerlink" href="#id39" title="Permalink to this heading">¶</a></h2>
+<section id="id38">
+<h2>Parameters<a class="headerlink" href="#id38" title="Permalink to this heading">¶</a></h2>
 <p>goal_robot : [x, y, theta]
 goal_pub : rospy.Publisher</p>
 </section>
@@ -658,8 +643,8 @@ goal_pub : rospy.Publisher</p>
 <dt class="sig sig-object py" id="local_planning.pubTrajectory">
 <span class="sig-prename descclassname"><span class="pre">local_planning.</span></span><span class="sig-name descname"><span class="pre">pubTrajectory</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">trajectory</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">traj_pub</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#local_planning.pubTrajectory" title="Permalink to this definition">¶</a></dt>
 <dd><p>Publish simulated trajectory as nav_msgs/Path.</p>
-<section id="id40">
-<h2>Parameters<a class="headerlink" href="#id40" title="Permalink to this heading">¶</a></h2>
+<section id="id39">
+<h2>Parameters<a class="headerlink" href="#id39" title="Permalink to this heading">¶</a></h2>
 <p>trajectory : list of [x, y, theta]
 traj_pub : rospy.Publisher</p>
 </section>
@@ -681,14 +666,14 @@ traj_pub : rospy.Publisher</p>
 <dt class="sig sig-object py" id="local_planning.rotate_towards_goal">
 <span class="sig-prename descclassname"><span class="pre">local_planning.</span></span><span class="sig-name descname"><span class="pre">rotate_towards_goal</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">robot_pose</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">goal_pose</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cmd_pub</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#local_planning.rotate_towards_goal" title="Permalink to this definition">¶</a></dt>
 <dd><p>Rotate robot in place until orientation matches goal.</p>
-<section id="id41">
-<h2>Parameters<a class="headerlink" href="#id41" title="Permalink to this heading">¶</a></h2>
+<section id="id40">
+<h2>Parameters<a class="headerlink" href="#id40" title="Permalink to this heading">¶</a></h2>
 <p>robot_pose : [x, y, theta]
 goal_pose : [x, y, theta]
 cmd_pub : rospy.Publisher</p>
 </section>
-<section id="id42">
-<h2>Returns<a class="headerlink" href="#id42" title="Permalink to this heading">¶</a></h2>
+<section id="id41">
+<h2>Returns<a class="headerlink" href="#id41" title="Permalink to this heading">¶</a></h2>
 <dl class="simple">
 <dt>bool</dt><dd><p>True if goal orientation reached.</p>
 </dd>
@@ -700,8 +685,8 @@ cmd_pub : rospy.Publisher</p>
 <dt class="sig sig-object py" id="local_planning.transform_goal_to_robot_frame">
 <span class="sig-prename descclassname"><span class="pre">local_planning.</span></span><span class="sig-name descname"><span class="pre">transform_goal_to_robot_frame</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">robot_pose</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">goal_pose</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#local_planning.transform_goal_to_robot_frame" title="Permalink to this definition">¶</a></dt>
 <dd><p>Transform a goal from map frame to robot frame.</p>
-<section id="id43">
-<h2>Parameters<a class="headerlink" href="#id43" title="Permalink to this heading">¶</a></h2>
+<section id="id42">
+<h2>Parameters<a class="headerlink" href="#id42" title="Permalink to this heading">¶</a></h2>
 <dl class="simple">
 <dt>robot_pose<span class="classifier">np.ndarray</span></dt><dd><p>Current robot pose [x, y, theta] in map frame.</p>
 </dd>
@@ -709,8 +694,8 @@ cmd_pub : rospy.Publisher</p>
 </dd>
 </dl>
 </section>
-<section id="id44">
-<h2>Returns<a class="headerlink" href="#id44" title="Permalink to this heading">¶</a></h2>
+<section id="id43">
+<h2>Returns<a class="headerlink" href="#id43" title="Permalink to this heading">¶</a></h2>
 <dl class="simple">
 <dt>np.ndarray</dt><dd><p>Goal pose [x, y, theta] in robot frame.</p>
 </dd>
@@ -722,15 +707,15 @@ cmd_pub : rospy.Publisher</p>
 <dt class="sig sig-object py" id="local_planning.wrap_angle">
 <span class="sig-prename descclassname"><span class="pre">local_planning.</span></span><span class="sig-name descname"><span class="pre">wrap_angle</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">theta</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">float</span></span></span><a class="headerlink" href="#local_planning.wrap_angle" title="Permalink to this definition">¶</a></dt>
 <dd><p>Wrap angle to [-pi, pi].</p>
-<section id="id45">
-<h2>Parameters<a class="headerlink" href="#id45" title="Permalink to this heading">¶</a></h2>
+<section id="id44">
+<h2>Parameters<a class="headerlink" href="#id44" title="Permalink to this heading">¶</a></h2>
 <dl class="simple">
 <dt>theta<span class="classifier">float</span></dt><dd><p>Angle in radians.</p>
 </dd>
 </dl>
 </section>
-<section id="id46">
-<h2>Returns<a class="headerlink" href="#id46" title="Permalink to this heading">¶</a></h2>
+<section id="id45">
+<h2>Returns<a class="headerlink" href="#id45" title="Permalink to this heading">¶</a></h2>
 <dl class="simple">
 <dt>float</dt><dd><p>Angle wrapped to [-pi, pi].</p>
 </dd>
@@ -774,7 +759,6 @@ cmd_pub : rospy.Publisher</p>
 <li class="toctree-l2"><a class="reference internal" href="#global_planner.grid_to_world"><code class="docutils literal notranslate"><span class="pre">grid_to_world()</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#global_planner.line_of_sight_smooth"><code class="docutils literal notranslate"><span class="pre">line_of_sight_smooth()</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#global_planner.path_pub"><code class="docutils literal notranslate"><span class="pre">path_pub</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="#global_planner.print_path"><code class="docutils literal notranslate"><span class="pre">print_path()</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#global_planner.publish_costmap"><code class="docutils literal notranslate"><span class="pre">publish_costmap()</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#global_planner.publish_path"><code class="docutils literal notranslate"><span class="pre">publish_path()</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#global_planner.publish_search"><code class="docutils literal notranslate"><span class="pre">publish_search()</span></code></a></li>

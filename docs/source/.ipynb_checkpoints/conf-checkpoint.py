@@ -20,7 +20,7 @@ extensions = [
 
 import os
 import sys
-sys.path.insert(0, os.path.abspath('../../src/fhtw/soarMazeEscape'))
+sys.path.insert(0, os.path.abspath('../../scripts'))
 
 templates_path = ['_templates']
 autodoc_mock_imports = ["rospy", "tf", "nav_msgs", "geometry_msgs", "numpy", "heapq", "scipy", "cv2"]

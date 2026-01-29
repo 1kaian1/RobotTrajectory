@@ -483,26 +483,6 @@ def publish_costmap(costmap, rec_map, frame_id="map"):
     costmap_pub.publish(grid_msg)
 
 
-def print_path(path_theta, title):
-    """
-    Print path to console for debugging.
-
-    Parameters
-    ----------
-    path_theta : list[tuple[float,float,float]]
-        Path with orientations
-    title : str
-        Title to print above the path
-    """
-    print(f"\n{title}")
-    print("-" * 60)
-    print(f"{'i':>3} | {'x':>8} | {'y':>8} | {'theta (rad)':>12}")
-    print("-" * 60)
-    for i, (x, y, theta) in enumerate(path_theta):
-        print(f"{i:3d} | {x:8.3f} | {y:8.3f} | {theta:12.3f}")
-    print("-" * 60)
-
-
 # =========================
 # Main
 # =========================
@@ -559,9 +539,7 @@ if __name__ == "__main__":
         path = line_of_sight_smooth(path, costmap, threshold=0.124)
         path_world = [grid_to_world(r, c, ox, oy, res) for r, c in path]
         path_theta = compute_orientations(path_world)
-        print_path(path_theta, "Global path BEFORE shift_theta_forward_with_dup")
         path_theta = shift_theta_forward_with_dup(path_theta)
-        print_path(path_theta, "Global path AFTER shift_theta_forward_with_dup")
 
         publish_path(path_theta)
         rospy.loginfo("Global path published")
