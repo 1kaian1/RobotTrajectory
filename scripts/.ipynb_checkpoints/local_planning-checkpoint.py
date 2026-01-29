@@ -23,7 +23,7 @@ path_received = False
 final_goal_reached = False
 
 # Goal reaching thresholds
-GOAL_DISTANCE_THRESHOLD = 0.15   # meters
+GOAL_DISTANCE_THRESHOLD = 0.1   # meters
 GOAL_ANGLE_THRESHOLD = 0.02      # radians
 
 # -------------------------------------------------------------------
