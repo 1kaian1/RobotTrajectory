@@ -1,4 +1,20 @@
 #!/usr/bin/env python3
+"""
+local_planner.py
+
+Local planner for TurtleBot3 navigation in ROS.
+
+This module provides utilities for:
+- Receiving and storing the global path from the global planner
+- Localizing the robot using TF
+- Transforming goals to the robot's frame
+- Checking if goals are reached
+- Generating candidate velocity controls
+- Simulating robot motion with PT2 dynamics
+- Evaluating candidate controls with a quadratic cost function
+- Visualizing candidate trajectories
+- Publishing velocity commands, local goals, and trajectories
+"""
 
 import numpy as np
 import numpy.typing as npt
@@ -13,36 +29,53 @@ from nav_msgs.msg import Path
 from std_msgs.msg import Header
 from visualization_msgs.msg import Marker, MarkerArray
 
-# -------------------------------------------------------------------
+# =========================
 # Global state
-# -------------------------------------------------------------------
+# =========================
 
 global_path = None
+"""Current global path as a list of [x, y, theta]."""
+
 current_goal_ID = 0
+"""Index of current waypoint along global path."""
+
 path_received = False
+"""Flag indicating if a global path has been received."""
+
 final_goal_reached = False
+"""Flag indicating if final goal has been reached."""
 
-# Goal reaching thresholds
-GOAL_DISTANCE_THRESHOLD = 0.1   # meters
-GOAL_ANGLE_THRESHOLD = 0.02      # radians
+# Goal thresholds
+GOAL_DISTANCE_THRESHOLD = 0.125   # meters
+"""Distance threshold for reaching a waypoint."""
 
-# -------------------------------------------------------------------
+GOAL_ANGLE_THRESHOLD = 0.02       # radians
+"""Orientation threshold for reaching a waypoint."""
+
+
+# =========================
 # Global path callback
-# -------------------------------------------------------------------
+# =========================
 
 def global_path_callback(msg: Path):
     """
-    Receives global path and converts it to list of [x, y, theta].
-    Resets goal index.
+    Callback for receiving a global path from ROS.
+
+    Converts each PoseStamped in the path to [x, y, theta] format.
+    Resets goal index and final goal flag.
     """
     global global_path, path_received, current_goal_ID, final_goal_reached
 
     global_path = []
     for pose_stamped in msg.poses:
+        # Extract position
         x = pose_stamped.pose.position.x
         y = pose_stamped.pose.position.y
+
+        # Convert quaternion to yaw angle
         q = pose_stamped.pose.orientation
         theta = R.from_quat([q.x, q.y, q.z, q.w]).as_euler("xyz")[2]
+
         global_path.append([x, y, theta])
 
     path_received = True
@@ -51,35 +84,41 @@ def global_path_callback(msg: Path):
 
     print(f"Global path received with {len(global_path)} waypoints")
 
-# -------------------------------------------------------------------
-# ROS init
-# -------------------------------------------------------------------
 
-rospy.init_node("local_planner")
-
-path_sub = rospy.Subscriber("/global_path", Path, global_path_callback)
-
-tfBuffer = tf2_ros.Buffer()
-listener = tf2_ros.TransformListener(tfBuffer)
-
-cmd_pub  = rospy.Publisher("/cmd_vel", Twist, queue_size=10)
-traj_pub = rospy.Publisher("/local_plan", Path, queue_size=10)
-goal_pub = rospy.Publisher("/local_goal", PoseStamped, queue_size=10)
-traj_viz_pub = rospy.Publisher("/all_local_trajectories", MarkerArray, queue_size=1)
-
-# -------------------------------------------------------------------
+# =========================
 # Utility functions
-# -------------------------------------------------------------------
+# =========================
 
 def wrap_angle(theta: float) -> float:
-    """Wrap angle to [-pi, pi]."""
+    """
+    Wrap angle to [-pi, pi].
+    
+    Parameters
+    ----------
+    theta : float
+        Angle in radians.
+
+    Returns
+    -------
+    float
+        Angle wrapped to [-pi, pi].
+    """
     return (theta + np.pi) % (2*np.pi) - np.pi
 
 
-def localiseRobot():
+def localiseRobot(tfBuffer):
     """
     Returns robot pose in map frame as [x, y, theta].
-    Returns None if TF is not available.
+    
+    Parameters
+    ----------
+    tfBuffer : tf2_ros.Buffer
+        TF buffer to lookup robot transform.
+
+    Returns
+    -------
+    np.ndarray or None
+        Robot pose [x, y, theta] in map frame, or None if TF not available.
     """
     try:
         trans = tfBuffer.lookup_transform(
@@ -100,7 +139,19 @@ def localiseRobot():
 
 def transform_goal_to_robot_frame(robot_pose, goal_pose):
     """
-    Transform goal from map frame to robot frame.
+    Transform a goal from map frame to robot frame.
+    
+    Parameters
+    ----------
+    robot_pose : np.ndarray
+        Current robot pose [x, y, theta] in map frame.
+    goal_pose : np.ndarray
+        Goal pose [x, y, theta] in map frame.
+
+    Returns
+    -------
+    np.ndarray
+        Goal pose [x, y, theta] in robot frame.
     """
     dx = goal_pose[0] - robot_pose[0]
     dy = goal_pose[1] - robot_pose[1]
@@ -118,20 +169,42 @@ def transform_goal_to_robot_frame(robot_pose, goal_pose):
 
 def check_goal_reached(robot_pose, goal_pose):
     """
-    Checks if robot is close enough to goal (position + orientation).
+    Check if the robot is close enough to the goal (position and orientation).
+
+    Parameters
+    ----------
+    robot_pose : np.ndarray
+        Current robot pose [x, y, theta].
+    goal_pose : np.ndarray
+        Goal pose [x, y, theta].
+
+    Returns
+    -------
+    bool
+        True if both position and orientation are within thresholds.
     """
     dist = np.linalg.norm(robot_pose[:2] - goal_pose[:2])
     ang  = abs(wrap_angle(robot_pose[2] - goal_pose[2]))
     return dist <= GOAL_DISTANCE_THRESHOLD and ang <= GOAL_ANGLE_THRESHOLD
 
 
-# -------------------------------------------------------------------
+# =========================
 # Control generation
-# -------------------------------------------------------------------
+# =========================
 
 def generateControls(lastControl: npt.ArrayLike) -> np.ndarray:
     """
-    Generates candidate (v, w) controls around previous command.
+    Generate candidate (v, w) velocity controls around previous command.
+
+    Parameters
+    ----------
+    lastControl : array-like
+        Last commanded velocities [v, w].
+
+    Returns
+    -------
+    np.ndarray
+        Array of candidate controls [[v1, w1], [v2, w2], ...].
     """
     v_last, w_last = lastControl
 
@@ -154,19 +227,31 @@ def generateControls(lastControl: npt.ArrayLike) -> np.ndarray:
     return np.array([[v, w] for v in v_values for w in w_values])
 
 
-# -------------------------------------------------------------------
+# =========================
 # Robot model
-# -------------------------------------------------------------------
+# =========================
 
 def forwardKinematics(control, lastPose, dt):
     """
     Differential drive forward kinematics.
-    Pose: [x, y, theta]
-    Control: [v, w]
+
+    Parameters
+    ----------
+    control : list or np.ndarray
+        Control input [v, w].
+    lastPose : list or np.ndarray
+        Last pose [x, y, theta].
+    dt : float
+        Time step.
+
+    Returns
+    -------
+    np.ndarray
+        New pose [x, y, theta].
     """
     vt, wt = control
     if abs(wt) < 1e-6:
-        wt = 1e-6
+        wt = 1e-6  # avoid division by zero
 
     x, y, theta = lastPose
     vtwt = vt / wt
@@ -180,8 +265,7 @@ def forwardKinematics(control, lastPose, dt):
 
 class PT2Block:
     """
-    Simple second-order dynamics model (Tustin approx).
-    Used to smooth velocity.
+    Simple second-order dynamics model (PT2) to smooth velocity commands.
     """
     def __init__(self, T=0, D=0, kp=1, ts=0, bufferLength=3):
         self.e = [0]*bufferLength
@@ -190,6 +274,9 @@ class PT2Block:
             self.setConstants(T, D, kp, ts)
 
     def setConstants(self, T, D, kp, ts):
+        """
+        Set PT2 constants for the difference equation.
+        """
         self.k1 = 4*T**2 + 4*D*T*ts + ts**2
         self.k2 = 2*ts**2 - 8*T**2
         self.k3 = 4*T**2 - 4*D*T*ts + ts**2
@@ -198,6 +285,11 @@ class PT2Block:
         self.k6 = kp*ts**2
 
     def update(self, e):
+        """
+        Update PT2 with new input error e.
+
+        Returns smoothed output.
+        """
         self.e = [e] + self.e[:-1]
         self.y = [0] + self.y[:-1]
         e, y = self.e, self.y
@@ -206,13 +298,27 @@ class PT2Block:
         return y[0]
 
 
-# -------------------------------------------------------------------
+# =========================
 # Cost function
-# -------------------------------------------------------------------
+# =========================
 
 def costFn(pose, goalpose, control):
     """
-    Quadratic cost in state and control.
+    Quadratic cost function penalizing deviation from goal and control effort.
+
+    Parameters
+    ----------
+    pose : np.ndarray
+        Robot pose [x, y, theta] in robot frame.
+    goalpose : np.ndarray
+        Goal pose [x, y, theta] in robot frame.
+    control : np.ndarray
+        Control input [v, w].
+
+    Returns
+    -------
+    float
+        Cost value.
     """
     e = pose - goalpose
     e[2] = wrap_angle(e[2])
@@ -223,9 +329,29 @@ def costFn(pose, goalpose, control):
     return float(e.T @ Q @ e + control.T @ Rm @ control)
 
 
-def evaluateControls(controls, robotModelPT2, horizon, goalpose_local):
+def evaluateControls(controls, robotModelPT2, horizon, goalpose_local, ts):
     """
-    Simulates all controls forward and evaluates cost.
+    Simulate all candidate controls and evaluate their costs.
+
+    Parameters
+    ----------
+    controls : np.ndarray
+        Candidate controls [[v, w], ...].
+    robotModelPT2 : PT2Block
+        PT2 velocity model for smoothing.
+    horizon : int
+        Simulation horizon (number of steps).
+    goalpose_local : np.ndarray
+        Goal pose in robot frame [x, y, theta].
+    ts : float
+        Time step.
+
+    Returns
+    -------
+    costs : np.ndarray
+        Cost of each control.
+    trajectories : list
+        Simulated trajectories for each control.
     """
     costs = np.zeros(len(controls))
     trajectories = [[] for _ in controls]
@@ -244,13 +370,13 @@ def evaluateControls(controls, robotModelPT2, horizon, goalpose_local):
     return costs, trajectories
 
 
-# -------------------------------------------------------------------
+# =========================
 # Visualization
-# -------------------------------------------------------------------
+# =========================
 
-def publish_all_trajectories(trajectories, costs):
+def publish_all_trajectories(trajectories, costs, traj_viz_pub):
     """
-    Publishes all candidate trajectories colored by cost.
+    Publish all candidate trajectories to RViz colored by cost.
     """
     ma = MarkerArray()
     min_c, max_c = min(costs), max(costs)
@@ -265,6 +391,7 @@ def publish_all_trajectories(trajectories, costs):
         m.type = Marker.LINE_STRIP
         m.scale.x = 0.01
 
+        # Color from green (low cost) to red (high cost)
         norm = (costs[i] - min_c) / rng
         m.color.r = norm
         m.color.g = 1.0 - norm
@@ -272,17 +399,16 @@ def publish_all_trajectories(trajectories, costs):
         m.color.a = 0.6
 
         for p in traj:
-            pt = Point(p[0], p[1], 0.02)
-            m.points.append(pt)
+            m.points.append(Point(p[0], p[1], 0.02))
 
         ma.markers.append(m)
 
     traj_viz_pub.publish(ma)
 
 
-def publish_best_trajectory(traj):
+def publish_best_trajectory(traj, traj_viz_pub):
     """
-    Publishes the best trajectory in blue.
+    Publish the best trajectory in blue.
     """
     m = Marker()
     m.header.frame_id = "base_link"
@@ -300,11 +426,21 @@ def publish_best_trajectory(traj):
     traj_viz_pub.publish(MarkerArray(markers=[m]))
 
 
-# -------------------------------------------------------------------
+# =========================
 # Publishers
-# -------------------------------------------------------------------
+# =========================
 
-def pubCMD(control):
+def pubCMD(control, cmd_pub):
+    """
+    Publish velocity command to /cmd_vel.
+
+    Parameters
+    ----------
+    control : [v, w]
+        Linear and angular velocity.
+    cmd_pub : rospy.Publisher
+        Publisher for /cmd_vel.
+    """
     v, w = control
     msg = Twist()
     msg.linear.x = float(v)
@@ -312,7 +448,15 @@ def pubCMD(control):
     cmd_pub.publish(msg)
 
 
-def pubTrajectory(trajectory):
+def pubTrajectory(trajectory, traj_pub):
+    """
+    Publish simulated trajectory as nav_msgs/Path.
+
+    Parameters
+    ----------
+    trajectory : list of [x, y, theta]
+    traj_pub : rospy.Publisher
+    """
     path = Path()
     path.header.stamp = rospy.Time.now()
     path.header.frame_id = "base_link"
@@ -332,7 +476,15 @@ def pubTrajectory(trajectory):
     traj_pub.publish(path)
 
 
-def pubGoal(goal_robot):
+def pubGoal(goal_robot, goal_pub):
+    """
+    Publish local goal as PoseStamped.
+
+    Parameters
+    ----------
+    goal_robot : [x, y, theta]
+    goal_pub : rospy.Publisher
+    """
     x, y, th = goal_robot
     ps = PoseStamped()
     ps.header.stamp = rospy.Time.now()
@@ -347,9 +499,20 @@ def pubGoal(goal_robot):
     goal_pub.publish(ps)
 
 
-def rotate_towards_goal(robot_pose, goal_pose):
+def rotate_towards_goal(robot_pose, goal_pose, cmd_pub):
     """
     Rotate robot in place until orientation matches goal.
+
+    Parameters
+    ----------
+    robot_pose : [x, y, theta]
+    goal_pose : [x, y, theta]
+    cmd_pub : rospy.Publisher
+
+    Returns
+    -------
+    bool
+        True if goal orientation reached.
     """
     err = wrap_angle(goal_pose[2] - robot_pose[2])
     K = 1.2
@@ -363,84 +526,105 @@ def rotate_towards_goal(robot_pose, goal_pose):
     return abs(err) <= GOAL_ANGLE_THRESHOLD
 
 
-# -------------------------------------------------------------------
-# Parameters
-# -------------------------------------------------------------------
+# =========================
+# Main function
+# =========================
 
-ts = 0.5
-horizon = 5
-robotModelPT2 = PT2Block(ts=ts, T=0.05, D=0.8)
+def main():
+    """
+    Main loop of the local planner node.
+    """
+    global path_received, global_path, current_goal_ID, final_goal_reached
 
-# -------------------------------------------------------------------
-# Wait for global path
-# -------------------------------------------------------------------
+    rospy.init_node("local_planner")
 
-print("Waiting for global path...")
-while not path_received and not rospy.is_shutdown():
-    rospy.sleep(0.1)
+    path_sub = rospy.Subscriber("/global_path", Path, global_path_callback)
 
-if not path_received:
-    rospy.signal_shutdown("No global path received")
-    exit(1)
+    tfBuffer = tf2_ros.Buffer()
+    listener = tf2_ros.TransformListener(tfBuffer)
 
-print("Global path received. Starting local planner...")
+    cmd_pub  = rospy.Publisher("/cmd_vel", Twist, queue_size=10)
+    traj_pub = rospy.Publisher("/local_plan", Path, queue_size=10)
+    goal_pub = rospy.Publisher("/local_goal", PoseStamped, queue_size=10)
+    traj_viz_pub = rospy.Publisher("/all_local_trajectories", MarkerArray, queue_size=1)
 
-# -------------------------------------------------------------------
-# Main loop
-# -------------------------------------------------------------------
+    ts = 0.5
+    horizon = 5
+    robotModelPT2 = PT2Block(ts=ts, T=0.05, D=0.8)
 
-rate = rospy.Rate(1.0/ts)
-last_control = np.array([0.0, 0.0])
+    print("Waiting for global path...")
+    while not path_received and not rospy.is_shutdown():
+        rospy.sleep(0.1)
 
-while not rospy.is_shutdown():
+    if not path_received:
+        rospy.signal_shutdown("No global path received")
+        return
 
-    if not global_path or current_goal_ID >= len(global_path):
-        pubCMD([0.0, 0.0])
+    print("Global path received. Starting local planner...")
+
+    rate = rospy.Rate(1.0/ts)
+    last_control = np.array([0.0, 0.0])
+
+    while not rospy.is_shutdown():
+        # If path is empty or completed, stop
+        if not global_path or current_goal_ID >= len(global_path):
+            pubCMD([0.0, 0.0], cmd_pub)
+            rate.sleep()
+            continue
+
+        # Get current robot pose
+        robotpose = localiseRobot(tfBuffer)
+        if robotpose is None:
+            rate.sleep()
+            continue
+
+        current_goal = np.array(global_path[current_goal_ID])
+        dist = np.linalg.norm(robotpose[:2] - current_goal[:2])
+        ang  = abs(wrap_angle(robotpose[2] - current_goal[2]))
+
+        # Rotate in place if at position but not orientation
+        if dist <= GOAL_DISTANCE_THRESHOLD and ang > GOAL_ANGLE_THRESHOLD:
+            if rotate_towards_goal(robotpose, current_goal, cmd_pub):
+                current_goal_ID += 1
+            rate.sleep()
+            continue
+
+        # Check if fully reached
+        if dist <= GOAL_DISTANCE_THRESHOLD and ang <= GOAL_ANGLE_THRESHOLD:
+            if current_goal_ID < len(global_path)-1:
+                current_goal_ID += 1
+            else:
+                final_goal_reached = True
+
+        if final_goal_reached:
+            pubCMD([0.0, 0.0], cmd_pub)
+            rate.sleep()
+            continue
+
+        # Transform goal to robot frame
+        goal_robot = transform_goal_to_robot_frame(robotpose, global_path[current_goal_ID])
+
+        # Generate candidate controls
+        controls = generateControls(last_control)
+
+        # Simulate and evaluate controls
+        costs, trajectories = evaluateControls(controls, robotModelPT2, horizon, goal_robot, ts)
+
+        # Select best control
+        best_idx = np.argmin(costs)
+        best_control = controls[best_idx]
+        best_traj = trajectories[best_idx]
+
+        # Publish visualizations and commands
+        publish_all_trajectories(trajectories, costs, traj_viz_pub)
+        publish_best_trajectory(best_traj, traj_viz_pub)
+        pubCMD(best_control, cmd_pub)
+        pubTrajectory(best_traj, traj_pub)
+        pubGoal(goal_robot, goal_pub)
+
+        last_control = best_control
         rate.sleep()
-        continue
 
-    robotpose = localiseRobot()
-    if robotpose is None:
-        rate.sleep()
-        continue
 
-    current_goal = np.array(global_path[current_goal_ID])
-    dist = np.linalg.norm(robotpose[:2] - current_goal[:2])
-    ang  = abs(wrap_angle(robotpose[2] - current_goal[2]))
-
-    # Rotate in place if position reached but angle not
-    if dist <= GOAL_DISTANCE_THRESHOLD and ang > GOAL_ANGLE_THRESHOLD:
-        if rotate_towards_goal(robotpose, current_goal):
-            current_goal_ID += 1
-        rate.sleep()
-        continue
-
-    # Fully reached
-    if dist <= GOAL_DISTANCE_THRESHOLD and ang <= GOAL_ANGLE_THRESHOLD:
-        if current_goal_ID < len(global_path)-1:
-            current_goal_ID += 1
-        else:
-            final_goal_reached = True
-
-    if final_goal_reached:
-        pubCMD([0.0, 0.0])
-        rate.sleep()
-        continue
-
-    goal_robot = transform_goal_to_robot_frame(robotpose, global_path[current_goal_ID])
-
-    controls = generateControls(last_control)
-    costs, trajectories = evaluateControls(controls, robotModelPT2, horizon, goal_robot)
-
-    best_idx = np.argmin(costs)
-    best_control = controls[best_idx]
-    best_traj = trajectories[best_idx]
-
-    publish_all_trajectories(trajectories, costs)
-    publish_best_trajectory(best_traj)
-    pubCMD(best_control)
-    pubTrajectory(best_traj)
-    pubGoal(goal_robot)
-
-    last_control = best_control
-    rate.sleep()
+if __name__ == "__main__":
+    main()

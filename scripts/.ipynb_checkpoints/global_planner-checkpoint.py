@@ -1,4 +1,18 @@
 #!/usr/bin/env python3
+"""
+global_planner.py
+
+Global planner for TurtleBot3 navigation in ROS.
+
+This module provides utilities for:
+- Reading the map from the map server
+- Converting between world and grid coordinates
+- Computing costmaps based on occupancy
+- Dijkstra search and path reconstruction
+- Line-of-sight path smoothing
+- Computing path orientations
+- Publishing paths and costmaps to ROS topics
+"""
 
 import rospy
 import math
@@ -7,54 +21,121 @@ import tf.transformations as tf_trans
 from nav_msgs.srv import GetMap
 from nav_msgs.msg import OccupancyGrid, Path
 from geometry_msgs.msg import PoseStamped, PoseWithCovarianceStamped
+import heapq
 
 # =========================
 # Global state
 # =========================
 
 current_pose = None
+"""Current robot pose (from AMCL)."""
+
 goal_pose = None
+"""Current goal pose (from RViz 2D Nav Goal)."""
 
-import heapq
+search_pub = None
+"""Publisher for visualizing Dijkstra search progress."""
 
-search_pub = None  # publisher pro vizualizaci Dijkstry
+path_pub = None
+"""Publisher for global path as nav_msgs/Path."""
+
+costmap_pub = None
+"""Publisher for custom costmap as OccupancyGrid."""
+
 
 # =========================
 # Callbacks
 # =========================
 
 def current_pose_cb(msg):
+    """
+    Callback for AMCL pose updates.
+
+    Parameters
+    ----------
+    msg : PoseWithCovarianceStamped
+        Current pose of the robot with covariance.
+    """
     global current_pose
-    # Store current robot pose from AMCL
     current_pose = msg.pose.pose
 
+
 def goal_pose_cb(msg):
+    """
+    Callback for 2D navigation goals from RViz.
+
+    Parameters
+    ----------
+    msg : PoseStamped
+        Goal position for the robot.
+    """
     global goal_pose
-    # Store 2D Nav Goal from RViz
     goal_pose = msg
+
 
 # =========================
 # Coordinate transforms
 # =========================
 
 def world_to_grid(x, y, origin_x, origin_y, resolution):
-    # Convert world coordinates to grid indices
+    """
+    Convert world coordinates to grid indices.
+
+    Parameters
+    ----------
+    x, y : float
+        World coordinates
+    origin_x, origin_y : float
+        Map origin in world frame
+    resolution : float
+        Map resolution (meters per cell)
+
+    Returns
+    -------
+    row, col : int
+        Grid indices corresponding to world coordinates
+    """
     col = int((x - origin_x) / resolution)
     row = int((y - origin_y) / resolution)
     return row, col
 
+
 def grid_to_world(row, col, origin_x, origin_y, resolution):
-    # Convert grid cell indices to world coordinates (cell center)
+    """
+    Convert grid indices to world coordinates (cell center).
+
+    Parameters
+    ----------
+    row, col : int
+        Grid indices
+    origin_x, origin_y : float
+        Map origin in world frame
+    resolution : float
+        Map resolution (meters per cell)
+
+    Returns
+    -------
+    x, y : float
+        World coordinates
+    """
     x = origin_x + (col + 0.5) * resolution
     y = origin_y + (row + 0.5) * resolution
     return x, y
+
 
 # =========================
 # Map handling
 # =========================
 
 def get_map():
-    # Request static map from map server
+    """
+    Request the static map from the ROS map server.
+
+    Returns
+    -------
+    OccupancyGrid or None
+        Map retrieved from the server, or None on failure.
+    """
     rospy.wait_for_service('static_map')
     try:
         get_map_srv = rospy.ServiceProxy('static_map', GetMap)
@@ -63,9 +144,21 @@ def get_map():
         rospy.logerr("Map service call failed: %s", e)
         return None
 
+
 def compute_costmap_8neighbors(binary_grid):
-    # For each cell, compute average occupancy of 8 neighbors
-    # Result is a soft costmap in range 0.0–1.0
+    """
+    Compute a soft costmap based on the 8-neighbor average.
+
+    Parameters
+    ----------
+    binary_grid : np.ndarray
+        Occupancy grid (0=free, 1=occupied)
+
+    Returns
+    -------
+    costmap : np.ndarray
+        Soft costmap with values in [0.0, 1.0]
+    """
     h, w = binary_grid.shape
     costmap = np.zeros((h, w), dtype=np.float32)
     for r in range(h):
@@ -80,15 +173,25 @@ def compute_costmap_8neighbors(binary_grid):
                     if 0 <= nr < h and 0 <= nc < w:
                         neighbor_sum += binary_grid[nr, nc]
                         neighbor_count += 1
-            # Normalize by number of valid neighbors
             costmap[r, c] = neighbor_sum / neighbor_count if neighbor_count > 0 else 0.0
     return costmap
 
+
 # =========================
-# Vizualizace Dijkstry
+# Visualization
 # =========================
 
 def publish_search(search_grid, rec_map):
+    """
+    Publish Dijkstra search visualization as OccupancyGrid.
+
+    Parameters
+    ----------
+    search_grid : np.ndarray
+        Grid showing search progress
+    rec_map : OccupancyGrid
+        Reference map for header/info
+    """
     msg = OccupancyGrid()
     msg.header.stamp = rospy.Time.now()
     msg.header.frame_id = "map"
@@ -96,7 +199,31 @@ def publish_search(search_grid, rec_map):
     msg.data = search_grid.flatten().tolist()
     search_pub.publish(msg)
 
+
 def dijkstra_visual(grid, start, goal, costmap, rec_map, alpha=10.0):
+    """
+    Dijkstra search with real-time visualization.
+
+    Parameters
+    ----------
+    grid : np.ndarray
+        Binary occupancy grid
+    start : tuple[int, int]
+        Start cell (row, col)
+    goal : tuple[int, int]
+        Goal cell (row, col)
+    costmap : np.ndarray
+        Soft costmap
+    rec_map : OccupancyGrid
+        Map reference for publishing
+    alpha : float
+        Costmap weight
+
+    Returns
+    -------
+    prev : dict
+        Mapping of each cell to its parent for path reconstruction.
+    """
     h, w = grid.shape
     dist = {start: 0}
     prev = {start: None}
@@ -112,7 +239,7 @@ def dijkstra_visual(grid, start, goal, costmap, rec_map, alpha=10.0):
 
         search_vis[r, c] = 100
         publish_search(search_vis, rec_map)
-        rospy.sleep(0.01)  # zpomalení pro vizualizaci
+        rospy.sleep(0.01)
 
         for dr, dc in [(1,0), (-1,0), (0,1), (0,-1)]:
             nr, nc = r + dr, c + dc
@@ -131,41 +258,23 @@ def dijkstra_visual(grid, start, goal, costmap, rec_map, alpha=10.0):
 
     return prev
 
-# =========================
-# Path planning (Dijkstra)
-# =========================
-
-def dijkstra_grid(grid, start_cell, goal_cell, costmap, alpha=10.0):
-    # Dijkstra search on grid with additional cost from costmap
-    rows, cols = grid.shape
-    distance = {start_cell: 0}
-    previous = {start_cell: None}
-    queue = [(0, start_cell)]
-    while queue:
-        current_dist, current = heapq.heappop(queue)
-        if current == goal_cell:
-            break
-        if current_dist > distance[current]:
-            continue
-        r, c = current
-        for dr, dc in [(1,0), (-1,0), (0,1), (0,-1)]:
-            nr, nc = r + dr, c + dc
-            if not (0 <= nr < rows and 0 <= nc < cols):
-                continue
-            if grid[nr, nc] == 1:
-                continue
-            move_cost = 1
-            cost = move_cost + alpha * costmap[nr, nc]
-            new_dist = current_dist + cost
-            neighbor = (nr, nc)
-            if neighbor not in distance or new_dist < distance[neighbor]:
-                distance[neighbor] = new_dist
-                previous[neighbor] = current
-                heapq.heappush(queue, (new_dist, neighbor))
-    return distance, previous
 
 def reconstruct_path(previous, goal_cell):
-    # Reconstruct path by walking backwards from goal
+    """
+    Reconstruct path from parent mapping.
+
+    Parameters
+    ----------
+    previous : dict
+        Parent mapping from Dijkstra
+    goal_cell : tuple[int, int]
+        Goal cell
+
+    Returns
+    -------
+    path : list[tuple[int, int]]
+        Ordered path from start to goal
+    """
     path = []
     cell = goal_cell
     while cell is not None:
@@ -173,12 +282,23 @@ def reconstruct_path(previous, goal_cell):
         cell = previous.get(cell)
     return path[::-1]
 
-# =========================
-# Line-of-sight smoothing
-# =========================
 
 def bresenham_line(x1, y1, x2, y2):
-    # Generate grid cells along a line using Bresenham algorithm
+    """
+    Bresenham line algorithm for grid cells.
+
+    Parameters
+    ----------
+    x1, y1 : int
+        Start cell
+    x2, y2 : int
+        End cell
+
+    Returns
+    -------
+    points : list[tuple[int,int]]
+        List of cells along the line
+    """
     points = []
     dx = abs(x2 - x1)
     dy = abs(y2 - y1)
@@ -206,15 +326,49 @@ def bresenham_line(x1, y1, x2, y2):
     points.append((x2, y2))
     return points
 
+
 def can_see(a, b, costmap, threshold=0.133):
-    # Check if all cells between a and b are below cost threshold
+    """
+    Check line-of-sight between two cells using costmap threshold.
+
+    Parameters
+    ----------
+    a, b : tuple[int,int]
+        Grid cells
+    costmap : np.ndarray
+        Soft costmap
+    threshold : float
+        Max allowed cost for line-of-sight
+
+    Returns
+    -------
+    visible : bool
+        True if line-of-sight is clear
+    """
     for r, c in bresenham_line(a[0], a[1], b[0], b[1]):
         if costmap[r, c] > threshold:
             return False
     return True
 
+
 def line_of_sight_smooth(path, costmap, threshold=0.133):
-    # Remove unnecessary intermediate points using line-of-sight check
+    """
+    Smooth path by removing unnecessary intermediate points.
+
+    Parameters
+    ----------
+    path : list[tuple[int,int]]
+        Original path
+    costmap : np.ndarray
+        Soft costmap
+    threshold : float
+        Max allowed cost for line-of-sight
+
+    Returns
+    -------
+    smoothed : list[tuple[int,int]]
+        Smoothed path
+    """
     if len(path) <= 2:
         return path.copy()
     smoothed = [path[0]]
@@ -227,12 +381,21 @@ def line_of_sight_smooth(path, costmap, threshold=0.133):
         i = j
     return smoothed
 
-# =========================
-# Orientation processing
-# =========================
 
 def compute_orientations(path_world):
-    # Assign heading based on direction to next waypoint
+    """
+    Compute orientations (theta) along path.
+
+    Parameters
+    ----------
+    path_world : list[tuple[float,float]]
+        Path in world coordinates
+
+    Returns
+    -------
+    path_theta : list[tuple[float,float,float]]
+        Path with (x,y,theta)
+    """
     result = []
     for i in range(len(path_world)):
         x, y = path_world[i]
@@ -240,13 +403,25 @@ def compute_orientations(path_world):
             x2, y2 = path_world[i + 1]
             theta = math.atan2(y2 - y, x2 - x)
         else:
-            # Keep previous orientation for last point
             theta = result[-1][2] if result else 0.0
         result.append((x, y, theta))
     return result
 
+
 def shift_theta_forward_with_dup(path):
-    # Duplicate waypoints to enforce rotation in place
+    """
+    Duplicate waypoints to enforce rotation in place.
+
+    Parameters
+    ----------
+    path : list[tuple[float,float,float]]
+        Original path
+
+    Returns
+    -------
+    new_path : list[list[float,float,float]]
+        Path with duplicated points for orientation adjustment
+    """
     if not path:
         return []
     new_path = []
@@ -258,12 +433,18 @@ def shift_theta_forward_with_dup(path):
         prev_theta = theta
     return new_path
 
-# =========================
-# Publishing
-# =========================
 
 def publish_path(path_world_theta, frame_id="map"):
-    # Publish path as nav_msgs/Path
+    """
+    Publish path as nav_msgs/Path to ROS.
+
+    Parameters
+    ----------
+    path_world_theta : list[tuple[float,float,float]]
+        Path with orientation
+    frame_id : str
+        ROS frame id
+    """
     msg = Path()
     msg.header.stamp = rospy.Time.now()
     msg.header.frame_id = frame_id
@@ -280,8 +461,20 @@ def publish_path(path_world_theta, frame_id="map"):
         msg.poses.append(ps)
     path_pub.publish(msg)
 
+
 def publish_costmap(costmap, rec_map, frame_id="map"):
-    # Publish costmap as OccupancyGrid for visualization
+    """
+    Publish soft costmap as OccupancyGrid to ROS.
+
+    Parameters
+    ----------
+    costmap : np.ndarray
+        Soft costmap
+    rec_map : OccupancyGrid
+        Reference map
+    frame_id : str
+        ROS frame id
+    """
     grid_msg = OccupancyGrid()
     grid_msg.header.stamp = rospy.Time.now()
     grid_msg.header.frame_id = frame_id
@@ -289,7 +482,18 @@ def publish_costmap(costmap, rec_map, frame_id="map"):
     grid_msg.data = (costmap * 100).astype(np.int8).flatten().tolist()
     costmap_pub.publish(grid_msg)
 
+
 def print_path(path_theta, title):
+    """
+    Print path to console for debugging.
+
+    Parameters
+    ----------
+    path_theta : list[tuple[float,float,float]]
+        Path with orientations
+    title : str
+        Title to print above the path
+    """
     print(f"\n{title}")
     print("-" * 60)
     print(f"{'i':>3} | {'x':>8} | {'y':>8} | {'theta (rad)':>12}")
@@ -297,6 +501,7 @@ def print_path(path_theta, title):
     for i, (x, y, theta) in enumerate(path_theta):
         print(f"{i:3d} | {x:8.3f} | {y:8.3f} | {theta:12.3f}")
     print("-" * 60)
+
 
 # =========================
 # Main
@@ -349,9 +554,7 @@ if __name__ == "__main__":
 
         rospy.loginfo("Planning from (%.2f, %.2f) to (%.2f, %.2f)", sx, sy, gx, gy)
 
-        # <-- použití vizualizace Dijkstry místo klasického dijkstra_grid -->
         parent = dijkstra_visual(grid, start, goal, costmap, rec_map)
-
         path = reconstruct_path(parent, goal)
         path = line_of_sight_smooth(path, costmap, threshold=0.124)
         path_world = [grid_to_world(r, c, ox, oy, res) for r, c in path]
