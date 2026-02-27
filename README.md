@@ -52,4 +52,9 @@ When running and RViz is started, publish new 2D Nav Goal in RViz. The global_pl
 [Robot Trajectory.pdf](https://github.com/user-attachments/files/24931164/Robot.Trajectory.pdf)
 
 ## Demo video
+
 https://github.com/user-attachments/assets/60fcae83-0873-4ca8-b0a1-b10e308533a5
+
+## Final presentation
+
+[Robot.Trajectory.pdf](https://github.com/user-attachments/files/25609618/Robot.Trajectory.pdf)
